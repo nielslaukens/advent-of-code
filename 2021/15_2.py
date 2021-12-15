@@ -1,8 +1,3 @@
-"""
-Note: not optimal. Took way to long to calculate. Needs optimisation.
-Ideas: prune bad paths?
-"""
-
 import numpy
 
 from tools import dijkstra
