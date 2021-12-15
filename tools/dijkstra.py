@@ -35,20 +35,30 @@ def dijkstra(
         raise ValueError(f"Could not find node `{repr(nodes_to_calculate_to)}` in edge_costs")
     nodes[nodes_to_calculate_to].cost = 0
 
+    def iteration():
+        # Extracted in separate function to get a call-count while profiling
+        nodes_to_recalculate = set()
+        for changed_node in nodes_changed_previous_iteration:
+            for node in inbound_edges[changed_node].keys():  # nodes connecting to the changed node
+                nodes_to_recalculate.add(node)
+
+        nodes_changed = set()
+        for node in nodes_to_recalculate:
+            for next_node, cost in outgoing_edges[node].items():
+                if nodes[next_node].cost is None:
+                    continue
+                cost_via_next_node = cost + nodes[next_node].cost
+                if nodes[node].cost is None or cost_via_next_node < nodes[node].cost:  # found (better) path
+                    nodes[node].next_hop = next_node
+                    nodes[node].cost = cost_via_next_node
+                    nodes_changed.add(node)
+
+        return nodes_changed
+
     nodes_changed = {nodes_to_calculate_to}
     while len(nodes_changed) > 0:
         nodes_changed_previous_iteration = nodes_changed
-        nodes_changed = set()
-        for changed_node in nodes_changed_previous_iteration:
-            for node in inbound_edges[changed_node].keys():  # nodes connecting to the changed node
-                for next_node, cost in outgoing_edges[node].items():
-                    if nodes[next_node].cost is None:
-                        continue
-                    cost_via_next_node = cost + nodes[next_node].cost
-                    if nodes[node].cost is None or cost_via_next_node < nodes[node].cost:  # found (better) path
-                        nodes[node].next_hop = next_node
-                        nodes[node].cost = cost_via_next_node
-                        nodes_changed.add(node)
+        nodes_changed = iteration()
 
     return nodes
 
