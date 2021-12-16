@@ -4,21 +4,21 @@ import typing
 
 @dataclasses.dataclass
 class NextHop:
-    next_hop: typing.Any
+    next_hop: typing.Hashable
     cost: int
 
 
 def dijkstra(
-        edge_costs: typing.Mapping[typing.Tuple[typing.Any, typing.Any], int],
-        nodes_to_calculate_to: typing.Any,
-) -> typing.Mapping[typing.Any, NextHop]:
+        edge_costs: typing.Mapping[typing.Tuple[typing.Hashable, typing.Hashable], int],
+        nodes_to_calculate_to: typing.Hashable,
+) -> typing.Mapping[typing.Hashable, NextHop]:
     """
     Calculate costs between nodes, multi-hop
     :param edge_costs: Mapping between edges and the associated cost for this path
     :param nodes_to_calculate_to: Calculate costs to this destination node
     :return: Cost & path from each node to the given destination node
     """
-    nodes: typing.Dict[typing.Any, NextHop] = {}
+    nodes: typing.Dict[typing.Hashable, NextHop] = {}
     outgoing_edges = {}  # outgoing_edges[from][to] = cost
     inbound_edges = {}  # inbound_edges[to][from] = cost
     for node_from, node_to in edge_costs.keys():
