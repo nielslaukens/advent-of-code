@@ -17,7 +17,7 @@ def ndarray_auto_extending_assign(array: numpy.ndarray, coords: typing.Tuple, va
     return array
 
 
-def str_highlight_value(array, value) -> str:
+def str_highlight_value(array: numpy.ndarray, value: typing.Union[int, str]) -> str:
     s = str(array)
     def highlight(s: str) -> str:
         return f'\033[91m{s}\033[0m'
