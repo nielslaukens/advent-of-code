@@ -1,9 +1,3 @@
-"""
-Too slow.
-Ideas: Maybe defrag the list of cuboids?
-"""
-
-import copy
 import dataclasses
 import re
 import typing
@@ -110,6 +104,8 @@ class Reactor:
         carved_cuboids = []
         new_ranges = []
         for on_range in self.on_ranges:
+            original_on_range = list(on_range)  # copy
+            maybe_new_ranges = []
             for dimension in range(3):
                 split_ranges, overlap_index = ranges_from_points(
                     on_range[dimension][0], on_range[dimension][1],
@@ -117,15 +113,17 @@ class Reactor:
                 )
                 for i, split_range in enumerate(split_ranges):
                     if i != overlap_index:
-                        r = list(on_range)
+                        r = list(on_range)  # copy
                         r[dimension] = split_range
-                        new_ranges.append(r)
-                if overlap_index is None:
+                        maybe_new_ranges.append(r)
+                if overlap_index is None:  # split was unnecessary
+                    new_ranges.append(original_on_range)
                     break
                 # else: continue to split up overlapping range
                 on_range[dimension] = split_ranges[overlap_index]
             else:  # loop terminated normally
-                new_ranges.append(on_range)
+                maybe_new_ranges.append(on_range)
+                new_ranges.extend(maybe_new_ranges)
                 carved_cuboids.append(len(new_ranges) - 1)  # last one added
 
         self.on_ranges = new_ranges
