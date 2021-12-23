@@ -10,12 +10,12 @@ class NextHop:
 
 def dijkstra(
         edge_costs: typing.Mapping[typing.Tuple[typing.Hashable, typing.Hashable], int],
-        nodes_to_calculate_to: typing.Hashable,
+        node_to_calculate_to: typing.Hashable,
 ) -> typing.Mapping[typing.Hashable, NextHop]:
     """
     Calculate costs between nodes, multi-hop
     :param edge_costs: Mapping between edges and the associated cost for this path
-    :param nodes_to_calculate_to: Calculate costs to this destination node
+    :param node_to_calculate_to: Calculate costs to this destination node
     :return: Cost & path from each node to the given destination node
     """
     nodes: typing.Dict[typing.Hashable, NextHop] = {}
@@ -31,9 +31,9 @@ def dijkstra(
         inbound_edges.setdefault(node_to, {})
         inbound_edges[node_to][node_from] = edge_costs[(node_from, node_to)]
 
-    if nodes_to_calculate_to not in nodes:
-        raise ValueError(f"Could not find node `{repr(nodes_to_calculate_to)}` in edge_costs")
-    nodes[nodes_to_calculate_to].cost = 0
+    if node_to_calculate_to not in nodes:
+        raise ValueError(f"Could not find node `{repr(node_to_calculate_to)}` in edge_costs")
+    nodes[node_to_calculate_to].cost = 0
 
     def iteration():
         # Extracted in separate function to get a call-count while profiling
@@ -55,7 +55,7 @@ def dijkstra(
 
         return nodes_changed
 
-    nodes_changed = {nodes_to_calculate_to}
+    nodes_changed = {node_to_calculate_to}
     while len(nodes_changed) > 0:
         nodes_changed_previous_iteration = nodes_changed
         nodes_changed = iteration()
