@@ -1,9 +1,8 @@
 """
 Too slow
-Runtime sample: 30s
-Runtime input: 34s
+sample3: 48s
+input2: 39s
 """
-
 import dataclasses
 import functools
 import typing
@@ -15,7 +14,7 @@ class IllegalMove(Exception):
     pass
 
 
-CHAMBER_DEPTH = 2
+CHAMBER_DEPTH = 4
 CHAMBER_POS = [2, 4, 6, 8]
 HALLWAY_LEN = 11
 ENERGY_MAP = {'A': 1, 'B': 10, 'C': 100, 'D': 1000}
@@ -244,7 +243,7 @@ class GameState:
                     break  # encountered something, would block entry
 
 
-with open("23.input.txt", "r") as f:
+with open("23.input2.txt", "r") as f:
     start_state = GameState.from_string(f.read())
 
 print(start_state)
