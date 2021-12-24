@@ -1,5 +1,5 @@
-import abc
 import enum
+import math
 import typing
 
 
@@ -25,140 +25,14 @@ class Register(enum.Enum):
         return self.name
 
 
-class Operand(abc.ABC):
-    def __init__(self, input_info: typing.Set[typing.Tuple[int, int]] = None):
-        if input_info is None:
-            input_info = set()
-        self.input_info = input_info
-
-    @abc.abstractmethod
-    def copy(self):
-        raise NotImplementedError()
-
-    def _combined_info(self, other) -> typing.Set[typing.Tuple[int, int]]:
-        if not isinstance(other, Operand):
-            raise ValueError(f"{repr(other)} is not an Operand")
-        return self.input_info.union(other.input_info)
-
-    def added_info(self, input_info: typing.Set[typing.Tuple[int, int]]) -> "Operand":
-        o = self.copy()
-        o.input_info = o.input_info.union(input_info)
-        return o
-
-    def __add__(self, other):
-        if not isinstance(other, Operand):
-            raise NotImplementedError()
-        if isinstance(self, LiteralOperand) and isinstance(other, LiteralOperand):
-            return LiteralOperand(self.value + other.value, self._combined_info(other))
-
-        if isinstance(self, LiteralOperand) and self.value == 0:
-            return other.added_info(self.input_info)
-        if isinstance(other, LiteralOperand) and other.value == 0:
-            return self.added_info(other.input_info)
-
-        return Instruction.add, (self, other)
-
-    def __mul__(self, other):
-        if not isinstance(other, Operand):
-            raise NotImplementedError()
-
-        if isinstance(self, LiteralOperand) and isinstance(other, LiteralOperand):
-            return LiteralOperand(self.value * other.value, self._combined_info(other))
-
-        if isinstance(self, LiteralOperand) and self.value == 1:
-            return other.added_info(self.input_info)
-        if isinstance(other, LiteralOperand) and other.value == 1:
-            return self.added_info(other.input_info)
-
-        if isinstance(self, LiteralOperand) and self.value == 0:
-            return self
-        if isinstance(other, LiteralOperand) and other.value == 0:
-            return other
-
-        return Instruction.mul, (self, other)
-
-    def __floordiv__(self, other):
-        if not isinstance(other, Operand):
-            raise NotImplementedError()
-
-        if isinstance(self, LiteralOperand) and isinstance(other, LiteralOperand):
-            # Python // rounds down; AoC requires round toward zero
-            v = (abs(self.value) // other.value) * (-1 if self.value < 0 else 1)
-            return LiteralOperand(v, self._combined_info(other))
-
-        if isinstance(self, LiteralOperand) and self.value == 0:
-            return self
-        if isinstance(other, LiteralOperand) and other.value == 1:
-            return self.added_info(other.input_info)
-
-        return Instruction.div, (self, other)
-
-    def __mod__(self, other):
-        if not isinstance(other, Operand):
-            raise NotImplementedError()
-
-        if isinstance(self, LiteralOperand) and isinstance(other, LiteralOperand):
-            return LiteralOperand(self.value % other.value, self._combined_info(other))
-
-        if isinstance(self, LiteralOperand) and self.value == 0:
-            return self
-
-        if isinstance(other, LiteralOperand) and other.value == 1:
-            return LiteralOperand(0, other.input_info)
-
-        return Instruction.mod, (self, other)
-
-    def eq(self, other):
-        if not isinstance(other, Operand):
-            raise NotImplementedError()
-
-        if isinstance(self, LiteralOperand) and isinstance(other, LiteralOperand):
-            value = 1 if self.value == other.value else 0
-            return LiteralOperand(value, self._combined_info(other))
-
-        if isinstance(self, Register) and isinstance(other, Register) and self.reg == other.reg:
-            return LiteralOperand(1)
-
-        return Instruction.eql, (self, other)
-
-
-class LiteralOperand(Operand):
-    def __init__(self, value, input_info: typing.Set[typing.Tuple[int, int]] = None):
-        super().__init__(input_info=input_info)
-        assert isinstance(value, int)
-        self.value = value
-
-    def copy(self) -> "LiteralOperand":
-        return LiteralOperand(value=self.value, input_info=self.input_info)
-
-    def __repr__(self) -> str:
-        if len(self.input_info) == 0:
-            return f"{self.value}"
-        else:
-            return f"<{self.value}>"
-
-
-class RegisterOperand(Operand):
-    def __init__(self, register: Register, input_info: typing.Set[typing.Tuple[int, int]] = None):
-        super().__init__(input_info=input_info)
-        self.reg = register
-
-    def copy(self) -> "RegisterOperand":
-        return RegisterOperand(register=self.reg)
-
-    def __repr__(self) -> str:
-        if len(self.input_info) == 0:
-            return f"{self.reg.name}"
-        else:
-            return f"<{self.reg.name}>"
-
-
-def read_in_program(code: str) -> typing.List[typing.Tuple[Instruction, typing.Tuple[Operand]]]:
+def read_in_program(code: str) -> typing.List[typing.Tuple[Instruction, typing.List]]:
     instructions = []
     for line in code.split('\n'):
         line = line.strip()
         if line == "":
             continue
+        if '#' in line:
+            line = line[0:(line.index('#'))]
         tokens = line.split()
         instruction = Instruction[tokens.pop(0)]
         num_operands = instruction.value[1]
@@ -166,134 +40,311 @@ def read_in_program(code: str) -> typing.List[typing.Tuple[Instruction, typing.T
             raise ValueError(f"Expected {num_operands} operands for instruction {instruction.name}, got {len(tokens)}")
         for i, token in enumerate(tokens):
             try:
-                token = RegisterOperand(Register[token])
+                token = Register[token]
             except KeyError:
-                token = LiteralOperand(int(token))
+                token = int(token)
             tokens[i] = token
-        instructions.append((instruction, tuple(tokens)))
+        instructions.append((instruction, tokens))
     return instructions
 
 
-def replace_ast(ast, reg: Register, replacement):
-    if isinstance(ast, RegisterOperand) and ast.reg == reg:
-        if len(ast.input_info) > 0:
-            return replacement.added_info(ast.input_info)
+class DidNothing(Exception):
+    pass
+
+
+class Ast:
+    def __init__(self, operation, operands):
+        self.operation = operation
+        self.operands = operands
+
+    def min(self):
+        if self.operation == '=':
+            return self.operands
+
+        if self.operation == '$':
+            return 1
+
+        if self.operation == '+':
+            res = None
+            for op in self.operands:
+                m = op.min()
+                if m is None:
+                    return None
+
+                if res is None:
+                    res = m
+                else:
+                    res += m
+            return res
+
+        if self.operation == '?':
+            return 0
+
+        return None
+
+    def max(self):
+        if self.operation == '=':
+            return self.operands
+
+        if self.operation == '$':
+            return 9
+
+        if self.operation == '+':
+            res = None
+            for op in self.operands:
+                m = op.max()
+                if m is None:
+                    return None
+                if res is None:
+                    res = m
+                else:
+                    res += m
+            return res
+
+        if self.operation == '?':
+            return 1
+
+        return None
+
+    def __repr__(self) -> str:
+        if self.operation == '=' or self.operation == '$':
+            return str(self.operands)
+        ops = [
+            repr(op)
+            for op in self.operands
+        ]
+        return self.operation + '(' + ', '.join([repr(_) for _ in self.operands]) + ')'
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Ast):
+            return False
+        if self.operation != other.operation:
+            return False
+        return self.operands == other.operands
+
+    def _is_eq(self, num):
+        return self.operation == '=' and self.operands == num
+
+    def __add__(self, other) -> "Ast":
+        if self._is_eq(0):
+            return other
+        if other._is_eq(0):
+            return self
+
+        if self.operation == '=' and other.operation == '=':
+            return Ast('=', self.operands + other.operands)
+
+        operands = []
+        if self.operation == '+':
+            operands.extend(self.operands)
         else:
-            return replacement
-    elif isinstance(ast, Operand):
-        return ast
-    elif isinstance(ast, tuple) and len(ast) == 2:
-        operands = tuple([
-            replace_ast(op, reg, replacement)
-            for op in ast[1]
-        ])
-        return ast[0], operands
-    else:
-        raise ValueError(f"Unknown ast node: {repr(ast)}")
-
-
-def simplify_ast(ast):
-    if isinstance(ast, Operand):
-        return ast
-    # else: instruction
-    operand = tuple([
-        simplify_ast(op)
-        for op in ast[1]
-    ])
-
-    if ast[0] == 'or':
-        nested_ops = set()
-        for op in operand:
-            if isinstance(op, tuple) and op[0] == 'or':  # flatten nested or
-                for subop in op[1]:
-                    nested_ops.add(subop)
+            operands.append(self)
+        if other.operation == '+':
+            operands.extend(other.operands)
+        else:
+            operands.append(other)
+        literals = 0
+        non_literals = []
+        for op in operands:
+            if op.operation == '=':
+                literals += op.operands
             else:
-                nested_ops.add(op)
-        operand = list(nested_ops)
+                non_literals.append(op)
+        if literals != 0:
+            non_literals.insert(0, Ast('=', literals))
+        return Ast('+', tuple(non_literals))
 
-        non_false_op = []
-        for op in operand:
-            if isinstance(op, LiteralOperand) and op.value == 0:
-                continue
-            non_false_op.append(op)
-        operand = tuple(non_false_op)
-        if len(operand) == 0:
-            return LiteralOperand(0)
-        if len(operand) == 1:
-            return operand[0]
+    def __mul__(self, other) -> "Ast":
+        if self._is_eq(0):
+            return self
+        if other._is_eq(0):
+            return other
 
-    elif isinstance(operand[0], Operand) and isinstance(operand[1], Operand):
-        if ast[0] == Instruction.add:
-            return operand[0] + operand[1]
+        if self._is_eq(1):
+            return other
+        if other._is_eq(1):
+            return self
 
-        elif ast[0] == Instruction.mul:
-            return operand[0] * operand[1]
+        if self.operation == '=' and other.operation == '=':
+            return Ast('=', self.operands * other.operands)
 
-        elif ast[0] == Instruction.div:
-            return operand[0] // operand[1]
+        operands = []
+        if self.operation == '*':
+            operands.extend(self.operands)
+        else:
+            operands.append(self)
+        if other.operation == '*':
+            operands.extend(other.operands)
+        else:
+            operands.append(other)
+        literals = 1
+        non_literals = []
+        for op in operands:
+            if op.operation == '=':
+                literals *= op.operands
+            else:
+                non_literals.append(op)
+        if literals != 1:
+            non_literals.insert(0, Ast('=', literals))
+        return Ast('*', tuple(non_literals))
 
-        elif ast[0] == Instruction.mod:
-            return operand[0] % operand[1]
+    def __floordiv__(self, other):
+        if self._is_eq(0):
+            return self
 
-        elif ast[0] == Instruction.eql:
-            return operand[0].eq(operand[1])
+        if other._is_eq(1):
+            return self
 
-    return ast[0], operand
+        if self.operation == '=' and other.operation == '=':
+            if other.operands == 0:
+                raise ValueError("Divide by 0")
+
+            # Instructions say div is rounded toward 0, Python's // rounds toward -inf
+            v = (abs(self.operands) // other.operands) * (-1 if self.operands < 0 else 1)
+            return Ast('=', v)
+
+        if self.operation == '*' \
+                and self.operands[0].operation == '=' and other.operation == '=' \
+                and self.operands[0].operands == other.operands:
+            # (N * x) / N  => x
+            return self.operands[1]
+
+        return Ast('/', (self, other))
+
+    def __mod__(self, other):
+        if self._is_eq(0):
+            return self
+
+        if other._is_eq(1):
+            return Ast('=', 0)
+
+        if self.operation == '=' and other.operation == '=':
+            if other.operands <= 0:
+                raise ValueError(f"Mod % {other.operands} not valid")
+            return Ast('=', self.operands % other.operands)
+
+        if self.operation == '$' and other.operation == '=':
+            if other.operands >= 10:
+                # var is 1-9. Modulo 10 or above is a noop
+                return self
+
+        return Ast('%', (self, other))
+
+    def eq(self, other):
+        if self.operation == '=' and other.operation == '=':
+            if self.operands == other.operands:
+                return Ast('=', 1)
+            else:
+                return Ast('=', 0)
+
+        s_min = self.min()
+        s_max = self.max()
+        o_min = other.min()
+        o_max = other.max()
+        if s_min is not None and s_max is not None and o_min is not None and o_max is not None:
+            if s_min == s_max == o_min == o_max:
+                return Ast('=', 1)
+            if s_max < o_min:
+                return Ast('=', 0)
+            if o_max < s_min:
+                return Ast('=', 0)
+
+        return Ast('?', (self, other))
+
+    def simplify(self) -> "Ast":
+        if self.operation == '%' and self.operands[0].operation == '+' and self.operands[1].operation == '=':
+            # (a + b) % c  =>  a%c + b%c
+            total = Ast('=', 0)
+            for op in self.operands[0].operands:
+                term = (op % self.operands[1]).simplify()
+                total = total + term
+            return total
+
+        if self.operation == '%' and self.operands[0].operation == '*' and self.operands[1].operation == '=':
+            # (a * b) % c  =>  if a % c == 0 then 0
+            # (we already pulled literals to the front, so we don't need to check b
+            if self.operands[0].operands[0].operation == '=' and \
+                    self.operands[0].operands[0].operands % self.operands[1].operands == 0:
+                return Ast('=', 0)
+
+        if self.operation == '*' and self.operands[1].operation == '+' and \
+                self.operands[0].operation == '=':
+            # (a * (b + c))  =>  ((a*b) + (a*c))
+            total = Ast('=', 0)
+            for op in self.operands[1].operands:
+                term = (self.operands[0] * op).simplify()
+                total = total + term
+            return total
+
+        return self
 
 
-input_num = 0
-def step_backward(
-        instruction_operands: typing.Tuple[Instruction, typing.Tuple[Operand]],
-        ast,
+assert Ast('=', 0) == Ast('=', 0)
+
+assert Ast('=', 0) + Ast('=', 0) == Ast('=', 0)
+assert Ast('=', 0) + Ast('=', 1) == Ast('=', 1)
+assert Ast('=', 1) + Ast('=', 2) == Ast('=', 3)
+assert Ast('$', 'a') + Ast('=', 0) == Ast('$', 'a')
+assert Ast('=', 0) + Ast('$', 'a') == Ast('$', 'a')
+assert Ast('$', 'a') + Ast('$', 'b') + Ast('$', 'c') == Ast('+', (Ast('$', 'a'), Ast('$', 'b'), Ast('$', 'c')))
+assert Ast('=', 2) + Ast('$', 'a') + Ast('=', 3) == Ast('+', (Ast('=', 5), Ast('$', 'a')))
+
+assert Ast('=', 0) * Ast('$', 'a') == Ast('=', 0)
+assert Ast('=', 1) * Ast('$', 'a') == Ast('$', 'a')
+assert Ast('=', 2) * Ast('$', 'a') * Ast('=', 2) == Ast('*', (Ast('=', 4), Ast('$', 'a')))
+
+# note: 26 * (a / 26)  is not equal to `a`, since it's floordiv!
+assert Ast('*', (Ast('=', 26), Ast('$', 'a'))) // Ast('=', 26) == Ast('$', 'a')
+
+
+def execute_program(
+        instructions: typing.List[typing.Tuple[Instruction, typing.List]],
+        input_data: typing.List[int],
 ):
-    global input_num
-    instruction, operand = instruction_operands
-    if instruction == Instruction.inp:
-        input_num -= 1
-        ast = ('or', tuple([
-            replace_ast(ast, operand[0].reg, LiteralOperand(i, {(input_num, i)}))
-            for i in range(1, 9+1)  # 0 is not allowed
-        ]))
+    registers = {
+        k: Ast('=', 0)
+        for k in Register
+    }
 
-    elif instruction == Instruction.add:
-        ast = replace_ast(ast, operand[0].reg, operand[0] + operand[1])
+    def reg_or_imm(op):
+        if isinstance(op, Register):
+            return registers[op]
+        else:
+            return Ast('=', op)
 
-    elif instruction == Instruction.mul:
-        ast = replace_ast(ast, operand[0].reg, operand[0] * operand[1])
+    for i, i_o in enumerate(instructions):
+        instruction, operands = i_o
+        if instruction == Instruction.inp:
+            registers[operands[0]] = Ast('$', input_data.pop(0))
+        elif instruction == Instruction.add:
+            registers[operands[0]] = registers[operands[0]] + reg_or_imm(operands[1])
+        elif instruction == Instruction.mul:
+            registers[operands[0]] = registers[operands[0]] * reg_or_imm(operands[1])
+        elif instruction == Instruction.div:
+            op1 = reg_or_imm(operands[1])
+            if op1 == 0:
+                raise ValueError(f"Divide by zero")
+            registers[operands[0]] = registers[operands[0]] // op1
+        elif instruction == Instruction.mod:
+            op0 = registers[operands[0]]
+            op1 = reg_or_imm(operands[1])
+            registers[operands[0]] = op0 % op1
+        elif instruction == Instruction.eql:
+            registers[operands[0]] = registers[operands[0]].eq(reg_or_imm(operands[1]))
 
-    elif instruction == Instruction.div:
-        ast = replace_ast(ast, operand[0].reg, operand[0] // operand[1])
+        for reg_n in registers.keys():
+            registers[reg_n] = registers[reg_n].simplify()
 
-    elif instruction == Instruction.mod:
-        ast = replace_ast(ast, operand[0].reg, operand[0] % operand[1])
-
-    elif instruction == Instruction.eql:
-        ast = replace_ast(ast, operand[0].reg, operand[0].eq(operand[1]))
-
-    elif instruction == 'set':
-        ast = replace_ast(ast, operand[0].reg, operand[1])
-
-    else:
-        raise NotImplementedError(f"{repr(instruction_operands)} not implemented")
-
-    ast = simplify_ast(ast)
-    return ast
+        #print()
+        #print(f"{i+1} {instruction.name} {operands}")
+        #for reg_n, reg_v in registers.items():
+        #    print(f"{reg_n} = {reg_v}")
+    return registers
 
 
 with open("24.input.txt", "r") as f:
     program = read_in_program(f.read())
-#print('\n'.join([str(_) for _ in program]))
 
-
-ast = (Instruction.eql, (RegisterOperand(Register.z), LiteralOperand(0)))
-print(f"     {ast}")
-for i, instr_op in enumerate(reversed(program)):
-    ast = step_backward(instr_op, ast)
-    #print(f"{instr_op}  =>  {ast}")
-    print(i)
-for reg in Register:
-    ast = step_backward(('set', (RegisterOperand(reg), LiteralOperand(0))), ast)
-    #print(f"{reg.name}=0  =>  {ast}")
-
-for i in ast[1]:
-    print(i.input_info)
+regs = execute_program(program, [chr(ord('a') + _) for _ in range(14)])
+z = regs[Register.z]
+print('forward done')
