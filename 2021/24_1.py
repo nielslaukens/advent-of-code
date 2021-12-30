@@ -4,7 +4,10 @@ Incomplete!
 
 import enum
 import math
+import time
 import typing
+
+import psutil as psutil
 
 
 class Instruction(enum.Enum):
@@ -20,10 +23,10 @@ class Instruction(enum.Enum):
 
 
 class Register(enum.Enum):
-    w = enum.auto()
-    x = enum.auto()
-    y = enum.auto()
-    z = enum.auto()
+    w = 0
+    x = 1
+    y = 2
+    z = 3
 
     def __repr__(self) -> str:
         return self.name
@@ -52,303 +55,247 @@ def read_in_program(code: str) -> typing.List[typing.Tuple[Instruction, typing.L
     return instructions
 
 
-class DidNothing(Exception):
-    pass
+def execute_instruction(
+        instr_op: typing.Tuple[Instruction, typing.Iterable[typing.Union[Register, int]]],
+        register_state: typing.Tuple[int, int, int, int],
+        inp: typing.Optional[int] = None,
+) -> typing.Tuple[int, int, int, int]:
+    instruction, operands = instr_op
 
-
-class Ast:
-    def __init__(self, operation, operands):
-        self.operation = operation
-        self.operands = operands
-
-    def min(self):
-        if self.operation == '=':
-            return self.operands
-
-        if self.operation == '$':
-            return 1
-
-        if self.operation == '+':
-            res = None
-            for op in self.operands:
-                m = op.min()
-                if m is None:
-                    return None
-
-                if res is None:
-                    res = m
-                else:
-                    res += m
-            return res
-
-        if self.operation == '?':
-            return 0
-
-        return None
-
-    def max(self):
-        if self.operation == '=':
-            return self.operands
-
-        if self.operation == '$':
-            return 9
-
-        if self.operation == '+':
-            res = None
-            for op in self.operands:
-                m = op.max()
-                if m is None:
-                    return None
-                if res is None:
-                    res = m
-                else:
-                    res += m
-            return res
-
-        if self.operation == '?':
-            return 1
-
-        return None
-
-    def __repr__(self) -> str:
-        if self.operation == '=' or self.operation == '$':
-            return str(self.operands)
-        ops = [
-            repr(op)
-            for op in self.operands
-        ]
-        return self.operation + '(' + ', '.join([repr(_) for _ in self.operands]) + ')'
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, Ast):
-            return False
-        if self.operation != other.operation:
-            return False
-        return self.operands == other.operands
-
-    def _is_eq(self, num):
-        return self.operation == '=' and self.operands == num
-
-    def __add__(self, other) -> "Ast":
-        if self._is_eq(0):
-            return other
-        if other._is_eq(0):
-            return self
-
-        if self.operation == '=' and other.operation == '=':
-            return Ast('=', self.operands + other.operands)
-
-        operands = []
-        if self.operation == '+':
-            operands.extend(self.operands)
-        else:
-            operands.append(self)
-        if other.operation == '+':
-            operands.extend(other.operands)
-        else:
-            operands.append(other)
-        literals = 0
-        non_literals = []
-        for op in operands:
-            if op.operation == '=':
-                literals += op.operands
-            else:
-                non_literals.append(op)
-        if literals != 0:
-            non_literals.insert(0, Ast('=', literals))
-        return Ast('+', tuple(non_literals))
-
-    def __mul__(self, other) -> "Ast":
-        if self._is_eq(0):
-            return self
-        if other._is_eq(0):
-            return other
-
-        if self._is_eq(1):
-            return other
-        if other._is_eq(1):
-            return self
-
-        if self.operation == '=' and other.operation == '=':
-            return Ast('=', self.operands * other.operands)
-
-        operands = []
-        if self.operation == '*':
-            operands.extend(self.operands)
-        else:
-            operands.append(self)
-        if other.operation == '*':
-            operands.extend(other.operands)
-        else:
-            operands.append(other)
-        literals = 1
-        non_literals = []
-        for op in operands:
-            if op.operation == '=':
-                literals *= op.operands
-            else:
-                non_literals.append(op)
-        if literals != 1:
-            non_literals.insert(0, Ast('=', literals))
-        return Ast('*', tuple(non_literals))
-
-    def __floordiv__(self, other):
-        if self._is_eq(0):
-            return self
-
-        if other._is_eq(1):
-            return self
-
-        if self.operation == '=' and other.operation == '=':
-            if other.operands == 0:
-                raise ValueError("Divide by 0")
-
-            # Instructions say div is rounded toward 0, Python's // rounds toward -inf
-            v = (abs(self.operands) // other.operands) * (-1 if self.operands < 0 else 1)
-            return Ast('=', v)
-
-        if self.operation == '*' \
-                and self.operands[0].operation == '=' and other.operation == '=' \
-                and self.operands[0].operands == other.operands:
-            # (N * x) / N  => x
-            return self.operands[1]
-
-        return Ast('/', (self, other))
-
-    def __mod__(self, other):
-        if self._is_eq(0):
-            return self
-
-        if other._is_eq(1):
-            return Ast('=', 0)
-
-        if self.operation == '=' and other.operation == '=':
-            if other.operands <= 0:
-                raise ValueError(f"Mod % {other.operands} not valid")
-            return Ast('=', self.operands % other.operands)
-
-        if self.operation == '$' and other.operation == '=':
-            if other.operands >= 10:
-                # var is 1-9. Modulo 10 or above is a noop
-                return self
-
-        return Ast('%', (self, other))
-
-    def eq(self, other):
-        if self.operation == '=' and other.operation == '=':
-            if self.operands == other.operands:
-                return Ast('=', 1)
-            else:
-                return Ast('=', 0)
-
-        s_min = self.min()
-        s_max = self.max()
-        o_min = other.min()
-        o_max = other.max()
-        if s_min is not None and s_max is not None and o_min is not None and o_max is not None:
-            if s_min == s_max == o_min == o_max:
-                return Ast('=', 1)
-            if s_max < o_min:
-                return Ast('=', 0)
-            if o_max < s_min:
-                return Ast('=', 0)
-
-        return Ast('?', (self, other))
-
-    def simplify(self) -> "Ast":
-        if self.operation == '%' and self.operands[0].operation == '+' and self.operands[1].operation == '=':
-            # (a + b) % c  =>  a%c + b%c
-            total = Ast('=', 0)
-            for op in self.operands[0].operands:
-                term = (op % self.operands[1]).simplify()
-                total = total + term
-            return total
-
-        if self.operation == '%' and self.operands[0].operation == '*' and self.operands[1].operation == '=':
-            # (a * b) % c  =>  if a % c == 0 then 0
-            # (we already pulled literals to the front, so we don't need to check b
-            if self.operands[0].operands[0].operation == '=' and \
-                    self.operands[0].operands[0].operands % self.operands[1].operands == 0:
-                return Ast('=', 0)
-
-        if self.operation == '*' and self.operands[1].operation == '+' and \
-                self.operands[0].operation == '=':
-            # (a * (b + c))  =>  ((a*b) + (a*c))
-            total = Ast('=', 0)
-            for op in self.operands[1].operands:
-                term = (self.operands[0] * op).simplify()
-                total = total + term
-            return total
-
-        return self
-
-
-assert Ast('=', 0) == Ast('=', 0)
-
-assert Ast('=', 0) + Ast('=', 0) == Ast('=', 0)
-assert Ast('=', 0) + Ast('=', 1) == Ast('=', 1)
-assert Ast('=', 1) + Ast('=', 2) == Ast('=', 3)
-assert Ast('$', 'a') + Ast('=', 0) == Ast('$', 'a')
-assert Ast('=', 0) + Ast('$', 'a') == Ast('$', 'a')
-assert Ast('$', 'a') + Ast('$', 'b') + Ast('$', 'c') == Ast('+', (Ast('$', 'a'), Ast('$', 'b'), Ast('$', 'c')))
-assert Ast('=', 2) + Ast('$', 'a') + Ast('=', 3) == Ast('+', (Ast('=', 5), Ast('$', 'a')))
-
-assert Ast('=', 0) * Ast('$', 'a') == Ast('=', 0)
-assert Ast('=', 1) * Ast('$', 'a') == Ast('$', 'a')
-assert Ast('=', 2) * Ast('$', 'a') * Ast('=', 2) == Ast('*', (Ast('=', 4), Ast('$', 'a')))
-
-# note: 26 * (a / 26)  is not equal to `a`, since it's floordiv!
-assert Ast('*', (Ast('=', 26), Ast('$', 'a'))) // Ast('=', 26) == Ast('$', 'a')
-
-
-def execute_program(
-        instructions: typing.List[typing.Tuple[Instruction, typing.List]],
-        input_data: typing.List[int],
-):
-    registers = {
-        k: Ast('=', 0)
-        for k in Register
-    }
-
-    def reg_or_imm(op):
+    def reg_or_imm(op: typing.Union[Register, int]) -> int:
         if isinstance(op, Register):
-            return registers[op]
+            return register_state[op.value]
         else:
-            return Ast('=', op)
+            return op
 
-    for i, i_o in enumerate(instructions):
-        instruction, operands = i_o
+    def set_reg(
+            register_state: typing.Tuple[int, int, int, int],
+            reg: Register,
+            value: int
+    ) -> typing.Tuple[int, int, int, int]:
+        register_state = list(register_state)
+        register_state[reg.value] = value
+        return tuple(register_state)
+
+    if instruction == Instruction.inp:
+        if inp is None:
+            raise ValueError("INP instruction, but no input supplied ")
+        register_state = set_reg(
+            register_state, operands[0],
+            inp,
+        )
+    elif instruction == Instruction.add:
+        register_state = set_reg(
+            register_state, operands[0],
+            register_state[operands[0].value] + reg_or_imm(operands[1])
+        )
+    elif instruction == Instruction.mul:
+        register_state = set_reg(
+            register_state, operands[0],
+            register_state[operands[0].value] * reg_or_imm(operands[1])
+        )
+    elif instruction == Instruction.div:
+        # Python // rounds towards -inf; AoC div rounds toward zero
+        op1 = register_state[operands[0].value]
+        op2 = reg_or_imm(operands[1])
+        v = abs(op1) // abs(op2)
+        v *= (-1 if op1 < 0 else 1) * (-1 if op2 < 0 else 1)
+        register_state = set_reg(
+            register_state, operands[0],
+            v
+        )
+    elif instruction == Instruction.mod:
+        register_state = set_reg(
+            register_state, operands[0],
+            register_state[operands[0].value] % reg_or_imm(operands[1])
+        )
+    elif instruction == Instruction.eql:
+        v = 1 if register_state[operands[0].value] == reg_or_imm(operands[1]) else 0
+        register_state = set_reg(
+            register_state, operands[0],
+            v
+        )
+    else:
+        raise ValueError(f"Unknown instruction {instruction}")
+
+    return register_state
+
+
+class MultiTuple19:
+    """
+    Stores a bitmap of the matching values:
+    1 => 1
+    2 => 2
+    3 => 4
+    4 => 8
+    5 => 16
+    6 => 32
+    7 => 64
+    8 => 128
+    9 => 256
+    """
+    def __init__(self, values: typing.Iterable[tuple] = None):
+        if values is None:
+            values = []
+        self._values = list(values)
+
+    @staticmethod
+    def val_to_bitmap(v: int) -> int:
+        return 2**(v-1)
+
+    @staticmethod
+    def set_to_bitmap(s: typing.Set[int]) -> int:
+        bm = 0
+        for v in s:
+            bm |= MultiTuple19.val_to_bitmap(v)
+        return bm
+
+    @staticmethod
+    def bitmap_to_set(bm: int) -> typing.Set[int]:
+        s = set()
+        for i in range(1, 9+1):
+            if bm & 2**(i-1) != 0:
+                s.add(i)
+        return s
+
+    def appended(self, suffix: tuple) -> "MultiTuple19":
+        """
+        Return a new MultiTuple19 with `suffix` appended to each stored value
+        """
+        bm_suffix = tuple([
+            MultiTuple19.val_to_bitmap(_)
+            for _ in suffix
+        ])
+        out = MultiTuple19()
+        out._values = [
+            v + bm_suffix
+            for v in self._values
+        ]
+        return out
+
+    def add(self, value: typing.Tuple[int, ...]):
+        bm_value = [
+            MultiTuple19.val_to_bitmap(_)
+            for _ in value
+        ]
+        return self._add(bm_value)
+
+    def _add(self, bm_value: typing.Tuple[int, ...]):
+        """
+        Add a single value to the set
+        """
+        def match_all_but_one(a: typing.Sized, b: typing.Sized) -> int:
+            # if len(a) != len(b):
+            #     return None
+
+            mismatch = None
+            for i in range(len(a)):
+                if a[i] != b[i]:
+                    if mismatch is None:
+                        mismatch = i
+                    else:  # already a mismatch, this is the second mismatch
+                        return None
+            return mismatch
+
+        def replace_tuple_el(t: tuple, el_num: int, v: int) -> tuple:
+            l = list(t)
+            l[el_num] = v
+            return tuple(l)
+
+        for i, current_bm_value in enumerate(self._values):
+            m = match_all_but_one(current_bm_value, bm_value)
+            if m is not None:
+                self._values[i] = replace_tuple_el(self._values[i], m, self._values[i][m] | bm_value[m])
+                break
+        else:
+            self._values.append(bm_value)
+
+    def extend(self, values: "MultiTuple19"):
+        """
+        Add multiple values to the set
+        """
+        if len(self._values) == 0:
+            # Add them without checking. Checking was done before
+            self._values.extend(values._values)
+            return
+
+        for bm_value in values._values:
+            self._add(bm_value)
+
+
+assert MultiTuple19.val_to_bitmap(5) == 16
+assert MultiTuple19.set_to_bitmap({1, 2, 5}) == 19
+assert MultiTuple19.bitmap_to_set(511) == {1, 2, 3, 4, 5, 6, 7, 8, 9}
+mt = MultiTuple19()
+mt.add((1, 2))
+mt.add((1, 3))
+mt = mt.appended((4,))
+assert mt._values == [(1, 6, 8)]
+
+
+class Multiverse:
+    def __init__(self, register_state: typing.Tuple[int, int, int, int]):
+        self.reality_inputs_map = {
+            register_state: MultiTuple19([tuple()]),
+        }
+        self.num_inputs = 0
+
+    def execute_instruction(self, instr_op: typing.Tuple[Instruction, typing.Iterable[typing.Union[Register, int]]]):
+        instruction, operands = instr_op
         if instruction == Instruction.inp:
-            registers[operands[0]] = Ast('$', input_data.pop(0))
-        elif instruction == Instruction.add:
-            registers[operands[0]] = registers[operands[0]] + reg_or_imm(operands[1])
-        elif instruction == Instruction.mul:
-            registers[operands[0]] = registers[operands[0]] * reg_or_imm(operands[1])
-        elif instruction == Instruction.div:
-            op1 = reg_or_imm(operands[1])
-            if op1 == 0:
-                raise ValueError(f"Divide by zero")
-            registers[operands[0]] = registers[operands[0]] // op1
-        elif instruction == Instruction.mod:
-            op0 = registers[operands[0]]
-            op1 = reg_or_imm(operands[1])
-            registers[operands[0]] = op0 % op1
-        elif instruction == Instruction.eql:
-            registers[operands[0]] = registers[operands[0]].eq(reg_or_imm(operands[1]))
+            self.num_inputs += 1
 
-        for reg_n in registers.keys():
-            registers[reg_n] = registers[reg_n].simplify()
+            # split up realities into 9 different ones
+            new_reality_inputs_map = {}
+            for reality, inputs in self.reality_inputs_map.items():
+                for i in range(1, 9+1):
+                    new_reality = execute_instruction(instr_op, reality, i)
+                    new_reality_inputs_map.setdefault(new_reality, MultiTuple19()).extend(inputs.appended((i,)))
+            self.reality_inputs_map = new_reality_inputs_map
+            return
 
-        #print()
-        #print(f"{i+1} {instruction.name} {operands}")
-        #for reg_n, reg_v in registers.items():
-        #    print(f"{reg_n} = {reg_v}")
-    return registers
+        if instruction == Instruction.add and operands[1] == 0:  # add _ 0  is noop
+            return
+        if instruction == Instruction.mul and operands[1] == 1:  # mul _ 1  is noop
+            return
+        if instruction == Instruction.div and operands[1] == 1:  # div _ 1  is noop
+            return
+
+        new_reality_inputs_map = {}
+        for reality, inputs in self.reality_inputs_map.items():
+            new_reality = execute_instruction(instr_op, reality)
+            new_reality_inputs_map.setdefault(new_reality, MultiTuple19()).extend(inputs)
+        self.reality_inputs_map = new_reality_inputs_map
 
 
 with open("24.input.txt", "r") as f:
     program = read_in_program(f.read())
+#program = program[0:100]  # Reduce runtime for profiling
 
-regs = execute_program(program, [chr(ord('a') + _) for _ in range(14)])
-z = regs[Register.z]
-print('forward done')
+
+m = Multiverse((0, 0, 0, 0))
+program.append((Instruction.mul, (Register.w, 0)))
+program.append((Instruction.mul, (Register.x, 0)))
+program.append((Instruction.mul, (Register.y, 0)))
+program.append((Instruction.eql, (Register.z, 0)))
+for i, instr_op in enumerate(program):
+    print(f"{i+1}  :  {instr_op}   ", end="", flush=True)
+    tstart = time.time()
+    m.execute_instruction(instr_op)
+    dt = time.time() - tstart
+    ram = psutil.Process().memory_info().rss / (1024 * 1024 * 1024)
+    print(f"  => {len(m.reality_inputs_map)} realities, "
+          f"{m.num_inputs} inputs, {ram:.1f} GB ram, {dt:.1f}s")
+
+print(f"collapse  => {len(m.reality_inputs_map)} realities, "
+      f"{m.num_inputs} inputs")
+
+assert len(m.reality_inputs_map) <= 2
+for regs, inputs in m.reality_inputs_map.items():
+    if regs[3] == 1:
+        break
+else:
+    raise RuntimeError("No reality with z==0")
+print("Inputs that lead to z==0:")
+for inp in inputs:
+    print(inp)
