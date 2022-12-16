@@ -14,7 +14,7 @@ def dijkstra(
 ) -> typing.Mapping[typing.Hashable, NextHop]:
     """
     Calculate costs between nodes, multi-hop
-    :param edge_costs: Mapping between edges and the associated cost for this path
+    :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
     :param node_to_calculate_to: Calculate costs to this destination node
     :return: Cost & path from each node to the given destination node
     """
@@ -46,6 +46,7 @@ def dijkstra(
         for node in nodes_to_recalculate:
             for next_node, cost in outgoing_edges[node].items():
                 if nodes[next_node].cost is None:
+                    # no path (yet) via next_node
                     continue
                 cost_via_next_node = cost + nodes[next_node].cost
                 if nodes[node].cost is None or cost_via_next_node < nodes[node].cost:  # found (better) path
