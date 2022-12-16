@@ -119,36 +119,11 @@ class Slices:
             if other.start == other.stop:
                 return
 
-            range_to_remove = []
-            range_to_add = []
-            for i, range in enumerate(self._ranges):
-                if other.stop <= range.start:
-                    # ranges are sorted; we're past the location where an existing range could have been
-                    break
-                elif range.stop <= other.start:
-                    pass  # not there yet, go to next range
-                elif other.start <= range.start and range.stop <= other.stop:
-                    # to-remove encompasses range completely
-                    range_to_remove.append(i)  # can't be done in-loop; note for later
-                elif other.start <= range.start < other.stop < range.stop:
-                    # Remove from start
-                    self._ranges[i] = slice(other.stop, range.stop)
-                elif range.start < other.start < range.stop <= other.stop:
-                    # remove from end
-                    self._ranges[i] = slice(range.start, other.start)
-                elif range.start < other.start < other.stop < range.stop:
-                    # cuts from the middle
-                    range_to_remove.append(i)
-                    range_to_add.append((i, slice(range.start, other.start)))
-                    range_to_add.append((i+1, slice(other.stop, range.stop)))
-                    break
-                else:
-                    raise NotImplementedError(f"can't remove {other.start}-{other.stop} from {range.start}-{range.stop}")
-            for i in reversed(range_to_remove):
-                # reversed, so the indices don't change
-                del self._ranges[i]
-            for i, s in range_to_add:
-                self._ranges.insert(i, s)
+            existing_ranges = self._ranges
+            self._ranges = []
+            for range in existing_ranges:
+                range = self._remove_slice(range, other)
+                self._ranges.extend(range)
 
         else:
             raise ValueError(f"Unknown type {other.__class__}")
