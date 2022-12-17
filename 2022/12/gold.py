@@ -1,6 +1,6 @@
 import numpy as np
 
-import tools.dijkstra
+import tools.graph.dijkstra
 
 height = None
 with open("input.txt", "r") as f:
@@ -48,7 +48,7 @@ for current_height in it:
         if height[next_loc] <= current_height + 1:
             edge_cost[current_loc, next_loc] = 1
 
-d = tools.dijkstra.dijkstra(
+d = tools.graph.dijkstra.dijkstra(
     edge_costs=edge_cost,
     node_to_calculate_to=end,
 )

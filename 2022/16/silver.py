@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import enum
 import re
 import time
 from copy import copy
 
 import typing
-
-from tools import graph
 
 OPEN_VALVE = 'OPEN_VALVE'
 MAX_TIME = 30
@@ -31,7 +30,34 @@ with open("input.txt", "r") as f:
         edges[node] = tunnels
 
 
-class ChosenPath(graph.Node):
+class Node:
+    def outbound_edges(self) -> typing.Iterable[Node]:
+        raise NotImplementedError()
+
+    class Order(enum.Enum):
+        PreOrder = enum.auto()  # emit a node before its children
+        PostOrder = enum.auto()  # emit children before the node
+        LeafOnly = enum.auto()  # only emit nodes without any children
+
+    def recursive_walk(self, order: Order = Order.PreOrder) -> typing.Generator[Node, None, None]:
+        if order == Node.Order.PreOrder:
+            yield self
+
+        leaf_node = True
+        for node in self.outbound_edges():
+            leaf_node = False
+            for _ in node.recursive_walk(order):
+                yield _
+
+        if order == Node.Order.LeafOnly and leaf_node:
+            # _ = list(self.outbound_edges())
+            yield self
+
+        if order == Node.Order.PostOrder:
+            yield self
+
+
+class ChosenPath(Node):
     def __init__(self, actions: list[str]):
         self.actions = actions
         self._position = None
@@ -161,7 +187,7 @@ class ChosenPath(graph.Node):
 t0 = time.time()
 p = ChosenPath([])
 best_path = None
-for i, path in enumerate(p.recursive_walk(graph.Node.Order.LeafOnly)):
+for i, path in enumerate(p.recursive_walk(Node.Order.LeafOnly)):
     if best_path is None or path.pressure_relieved > best_path.pressure_relieved:
         best_path = path
     #print(f"path {i}, relieved: {path.pressure_relieved} from {path.actions}")

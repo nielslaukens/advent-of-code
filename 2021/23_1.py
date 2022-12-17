@@ -8,7 +8,7 @@ import dataclasses
 import functools
 import typing
 
-from tools.dijkstra import dijkstra
+from tools.graph.dijkstra import dijkstra
 
 
 class IllegalMove(Exception):

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import functools
-import numbers
 import re
 import time
 from copy import copy
 
 import typing
 
-from tools import graph, dijkstra, tree_pruning
+from tools import tree_pruning
+from tools.graph import dijkstra
 from tools.tree_pruning import Tree, Leaf
 
 OPEN_VALVE = 'OPEN_VALVE'

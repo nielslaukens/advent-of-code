@@ -1,6 +1,6 @@
 import numpy
 
-from tools import dijkstra
+from tools.graph import dijkstra
 
 grid = None
 with open("15.input.txt", "r") as f:
