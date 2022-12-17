@@ -7,7 +7,7 @@ import typing
 
 
 class Tree:
-    def branches(self) -> typing.Iterable[tuple[typing.Any, Tree], None, None]:
+    def branches(self) -> typing.Collection[tuple[typing.Any, Tree], None, None]:
         """
         The (sub)branches and leaves at this point in the (sub)tree.
 
@@ -17,30 +17,45 @@ class Tree:
 
     def search_best_leaf(
             self, better_than: numbers.Real = -math.inf,
+            _progress: list[float] = None
     ) -> tuple[list[typing.Any] | None, numbers.Real | None]:
         """
         Returns the path (a list of identifiers returned by self.branches()) to the leaf
         with the highest score.
         Optionally filter results so only leaves better than `better_than` are considered.
         """
+        if _progress is None:
+            _progress = []
+
         best_path = None
-        best_score = -math.inf
+        best_score = better_than
         if self.score_guaranteed_below(better_than):
             return best_path, best_score
 
-        for identifier, branch_or_leaf in self.branches():
+        if len(_progress) <= 5:
+            print(f"Tree walk progress (cb={best_score}): " + ' . '.join([f"{float(_):.2f}" for _ in _progress]))
+
+        branches = self.branches()
+        len_branches = len(branches)
+        for i, _ in enumerate(branches):
+            identifier, branch_or_leaf = _
+            this_progress = [*_progress, (i+1)/len_branches]
             if isinstance(branch_or_leaf, Tree):
-                path, score = branch_or_leaf.search_best_leaf(better_than=best_score)
+                path, score = branch_or_leaf.search_best_leaf(
+                    better_than=best_score,
+                    _progress=this_progress,
+                )
                 if path is None:
                     continue
                 path.insert(0, identifier)
+
             elif isinstance(branch_or_leaf, Leaf):
                 path = [identifier]
                 score = branch_or_leaf.score
             else:
                 raise ValueError(f"Unknown type {branch_or_leaf.__class__}")
 
-            if best_path is None or score > best_score:
+            if score > best_score:
                 best_path = path
                 best_score = score
 
@@ -59,7 +74,8 @@ class Leaf(Tree):
         self.score = score
 
     def search_best_leaf(
-            self, better_than: numbers.Real = -math.inf
+            self, better_than: numbers.Real = -math.inf,
+            _progress: list[float] = None,
     ) -> tuple[list[typing.Any] | None, numbers.Real | None]:
         return [], self.score
 

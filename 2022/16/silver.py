@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-import enum
+import functools
+import math
+import numbers
 import re
-import time
-from copy import copy
-
 import typing
 
-OPEN_VALVE = 'OPEN_VALVE'
+from tools import graph
+from tools.graph.floyd_warshall import floyd_warshall
+from tools.tree_pruning import Tree
+
 MAX_TIME = 30
 
 valve_flow_rate: dict[str, int] = {}
-edges: dict[str, list[str]] = {}
+outbound_tunnels: dict[str, list[str]] = {}
 
 with open("input.txt", "r") as f:
     for line in f:
@@ -27,174 +29,66 @@ with open("input.txt", "r") as f:
         ]
 
         valve_flow_rate[node] = node_rate
-        edges[node] = tunnels
+        outbound_tunnels[node] = tunnels
+
+tunnel_edge_costs = {}
+for position, out in outbound_tunnels.items():
+    for dst in out:
+        tunnel_edge_costs[(position, dst)] = 1  # takes 1 minute to traverse
+
+# Remove useless intermediary nodes where no (useful) valve is located
+useful_valves = set()
+for valve, flow in valve_flow_rate.items():
+    if flow == 0 and valve != 'AA':
+        tunnel_edge_costs = graph.remove_node(tunnel_edge_costs, valve, reconnect_edges=True)
+    if flow > 0:
+        useful_valves.add(valve)
+
+# Calculate travel time between any 2 nodes. Then add 1 minute to open the valve at the destination.
+# There is no use to travel to a valve when you're not opening it
+choice_costs = floyd_warshall(tunnel_edge_costs)
+for src, _ in choice_costs.items():
+    del _[src]  # remove traveling to self
+    for dst, cost in _.items():
+        _[dst] += 1
 
 
-class Node:
-    def outbound_edges(self) -> typing.Iterable[Node]:
-        raise NotImplementedError()
+class ChosenPath(Tree):
+    def __init__(self, open_valves: list[str] = None):
+        if open_valves is None:
+            open_valves = []
+        self.open_valves = open_valves
+        self.closed_valves = useful_valves.difference(self.open_valves)
 
-    class Order(enum.Enum):
-        PreOrder = enum.auto()  # emit a node before its children
-        PostOrder = enum.auto()  # emit children before the node
-        LeafOnly = enum.auto()  # only emit nodes without any children
+    def time_relieved(self) -> tuple[int, int]:
+        time = 0
+        relieved_at_end = 0
+        current_position = 'AA'
+        for v in self.open_valves:
+            time += choice_costs[current_position][v]
+            current_position = v
+            time_remaining = MAX_TIME - time
+            if time_remaining > 0:
+                relieved_at_end += time_remaining * valve_flow_rate[v]
+        return time, relieved_at_end
 
-    def recursive_walk(self, order: Order = Order.PreOrder) -> typing.Generator[Node, None, None]:
-        if order == Node.Order.PreOrder:
-            yield self
+    def branches(self) -> typing.Iterable[tuple[typing.Any, Tree], None, None]:
+        for valve in self.closed_valves:
+            t = ChosenPath([*self.open_valves, valve])
+            yield valve, t
 
-        leaf_node = True
-        for node in self.outbound_edges():
-            leaf_node = False
-            for _ in node.recursive_walk(order):
-                yield _
+    def search_best_leaf(
+            self, better_than: numbers.Real = -math.inf
+    ) -> tuple[list[typing.Any] | None, numbers.Real | None]:
+        time, relieved = self.time_relieved()
+        if time >= MAX_TIME or len(self.closed_valves) == 0:
+            #print(f"{self.open_valves}  => {relieved}")
+            return [], relieved
 
-        if order == Node.Order.LeafOnly and leaf_node:
-            # _ = list(self.outbound_edges())
-            yield self
-
-        if order == Node.Order.PostOrder:
-            yield self
-
-
-class ChosenPath(Node):
-    def __init__(self, actions: list[str]):
-        self.actions = actions
-        self._position = None
-        self._previous_positions_since_last_open = None
-        self._open_valves = None
-        self._current_flow_rate = None
-        self._pressure_relieved_so_far = None
-
-    @property
-    def time(self) -> int:
-        return len(self.actions)
-
-    @property
-    def position(self) -> str:
-        if self._position is None:
-            self._calculate_state()
-        return self._position
-
-    @property
-    def previous_positions_since_last_open(self) -> str:
-        if self._previous_positions_since_last_open is None:
-            self._calculate_state()
-        return self._previous_positions_since_last_open
-
-    @property
-    def open_valves(self) -> set[str]:
-        if self._open_valves is None:
-            self._calculate_state()
-        return self._open_valves
-
-    @property
-    def current_flow_rate(self) -> int:
-        if self._current_flow_rate is None:
-            self._calculate_state()
-        return self._current_flow_rate
-
-    @property
-    def pressure_relieved(self) -> int:
-        if self._pressure_relieved_so_far is None:
-            self._calculate_state()
-        return self._pressure_relieved_so_far
-
-    def print(self):
-        self._calculate_state(verbose=True)
-
-    def _calculate_state(self, verbose: bool = False) -> None:
-        self._position = 'AA'
-        self._previous_positions_since_last_open = set()
-        self._open_valves = set()
-        self._current_flow_rate = 0
-        self._pressure_relieved_so_far = 0
-
-        for i, action in enumerate(self.actions):
-            self._calculate_state_single_step(action, verbose, i)
-
-    def _calculate_state_single_step(self, action, verbose: bool = False, t: int = None) -> None:
-        self._pressure_relieved_so_far += self._current_flow_rate
-        if action == OPEN_VALVE:
-            if verbose:
-                print(f"t={t+1} Opening {self._position} ({valve_flow_rate[self._position]}). "
-                      f"Releasing {self._current_flow_rate}/min. "
-                      f"Released so far: {self._pressure_relieved_so_far}. "
-                      f"Already open: {self._open_valves}")
-            assert self._position not in self._open_valves
-            self._open_valves.add(self._position)
-            self._current_flow_rate += valve_flow_rate[self._position]
-            self._previous_positions_since_last_open = set()
-        else:
-            if verbose:
-                print(f"t={t+1} Moving to {action}. "
-                      f"Releasing {self._current_flow_rate}/min. "
-                      f"Released so far: {self._pressure_relieved_so_far}. "
-                      f"Already open: {self._open_valves}")
-            assert action in edges[self._position]
-            self._previous_positions_since_last_open.add(self._position)
-            self._position = action
-
-    def upper_bound_on_relieved_at_max_time(self) -> int:
-        valves_still_closed = set(valve_flow_rate.keys()).difference(self.open_valves)
-        valves_still_closed = sorted(list(valves_still_closed), key=lambda name: valve_flow_rate[name], reverse=True)
-        time_remaining = MAX_TIME - self.time
-
-        # open valves, highest yield first, 1 minute apart (i.e. instant travel)
-        extra_relieved_pressure_at_end = 0
-        for i, valve in enumerate(valves_still_closed):
-            time_this_valve_can_be_open = (time_remaining - i)
-            if time_this_valve_can_be_open <= 0:
-                break
-            extra_relieved_pressure_at_end += valve_flow_rate[valve] * time_this_valve_can_be_open
-
-        return self.pressure_relieved \
-            + self.current_flow_rate * time_remaining \
-            + extra_relieved_pressure_at_end
-
-    def outbound_edges(self) -> typing.Generator[ChosenPath, None, None]:
-        if self.time >= MAX_TIME:
-            return
-
-        global best_path
-        if best_path is not None and self.upper_bound_on_relieved_at_max_time() < best_path.pressure_relieved:
-            return
-
-        if self.position not in self.open_valves and valve_flow_rate[self.position] > 0:
-            yield self.do_action(OPEN_VALVE)
-
-        for towards in edges[self.position]:
-            if towards in self.previous_positions_since_last_open:
-                # no use to go back to where we came from without doing anything
-                continue
-
-            yield self.do_action(towards)
-
-    def do_action(self, action: str) -> ChosenPath:
-        p = ChosenPath([*self.actions, action])
-
-        # Optimise by re-using current state and only calculating one step ahead
-        p._position = self._position
-        p._previous_positions_since_last_open = copy(self._previous_positions_since_last_open)
-        p._open_valves = copy(self._open_valves)
-        p._current_flow_rate = self._current_flow_rate
-        p._pressure_relieved_so_far = self._pressure_relieved_so_far
-        p._calculate_state_single_step(action)
-
-        return p
+        # else:  # search branches
+        return super().search_best_leaf(better_than)
 
 
-t0 = time.time()
-p = ChosenPath([])
-best_path = None
-for i, path in enumerate(p.recursive_walk(Node.Order.LeafOnly)):
-    if best_path is None or path.pressure_relieved > best_path.pressure_relieved:
-        best_path = path
-    #print(f"path {i}, relieved: {path.pressure_relieved} from {path.actions}")
-
-print(f"Searched {i} paths in {time.time() - t0:.3f} seconds")
-print(f"{best_path.pressure_relieved} from {len(best_path.actions)} {best_path.actions}")
-#best_path.print()
-
-# 1796  too low
-# 1906  OK
+p = ChosenPath()
+best = p.search_best_leaf()
+print(best)

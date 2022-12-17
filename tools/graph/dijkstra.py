@@ -2,16 +2,19 @@ import dataclasses
 import typing
 
 
+NodeId = typing.TypeVar('NodeId', bound=typing.Hashable)
+
+
 @dataclasses.dataclass
 class NextHop:
-    next_hop: typing.Hashable
+    next_hop: NodeId
     cost: int
 
 
 def dijkstra(
-        edge_costs: typing.Mapping[typing.Tuple[typing.Hashable, typing.Hashable], int],
-        node_to_calculate_to: typing.Hashable,
-) -> typing.Mapping[typing.Hashable, NextHop]:
+        edge_costs: typing.Mapping[typing.Tuple[NodeId, NodeId], int],
+        node_to_calculate_to: NodeId,
+) -> typing.Mapping[NodeId, NextHop]:
     """
     Calculate costs between nodes, multi-hop
     :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
