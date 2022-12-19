@@ -7,7 +7,7 @@ import typing
 
 
 class Tree:
-    def branches(self) -> typing.Collection[tuple[typing.Any, Tree], None, None]:
+    def branches(self) -> typing.Collection[tuple[typing.Any, Tree]]:
         """
         The (sub)branches and leaves at this point in the (sub)tree.
 
@@ -40,7 +40,11 @@ class Tree:
         for i, _ in enumerate(branches):
             identifier, branch_or_leaf = _
             this_progress = [*_progress, (i+1)/len_branches]
-            if isinstance(branch_or_leaf, Tree):
+            if isinstance(branch_or_leaf, Leaf):
+                path = [identifier]
+                score = branch_or_leaf.score
+
+            elif isinstance(branch_or_leaf, Tree):
                 path, score = branch_or_leaf.search_best_leaf(
                     better_than=best_score,
                     _progress=this_progress,
@@ -49,9 +53,6 @@ class Tree:
                     continue
                 path.insert(0, identifier)
 
-            elif isinstance(branch_or_leaf, Leaf):
-                path = [identifier]
-                score = branch_or_leaf.score
             else:
                 raise ValueError(f"Unknown type {branch_or_leaf.__class__}")
 

@@ -1,4 +1,3 @@
-import math
 import typing
 
 
@@ -11,7 +10,8 @@ def floyd_warshall(
     """
     Calculate the cost between all node-pairs from the listed edge casts.
     :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
-    :return:
+
+    Note that this does NOT return the path to take to achieve that cost.
     """
     cost_from_to: dict[NodeId, dict[NodeId, int | None]] = {}
     for edge, cost in edge_costs.items():
