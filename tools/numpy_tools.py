@@ -5,6 +5,9 @@ import numpy
 
 
 def ndarray_auto_extending_assign(array: numpy.ndarray, coords: typing.Tuple, value, fill=0) -> numpy.ndarray:
+    """
+    Sets array[coords] to value, extending array if needed with fill values
+    """
     if len(coords) != len(array.shape):
         raise ValueError(f"Need {len(array.shape)}-tuple coordinate, but got {len(coords)}")
     for dim in range(len(array.shape)):
