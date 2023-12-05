@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import typing
 
+from tools.mapping import Mapping
+
 
 class Slices:
     """
-    Combine a list of slice()s
+    Combine a list of slice()s (or range()s)
     """
     def __init__(self, ranges: typing.Iterable[slice] = None):
         if ranges is None:
@@ -76,7 +78,6 @@ class Slices:
             f"Don't know how to cut [{cut_out.start},{cut_out.stop}) "
             f"from [{base.start},{base.stop})")
 
-
     def add(self, other: Slices | slice) -> typing.Self:
         self.__iadd__(other)
         return self
@@ -137,6 +138,9 @@ class Slices:
         for range in self._ranges:
             l += range.stop - range.start
         return l
+
+    def __iter__(self) -> typing.Iterator[slice]:
+        return iter(self._ranges)
 
 
 if __name__ == "__main__":
