@@ -21,10 +21,7 @@ with open("input.txt", "r") as f:
 print("after rules: ", page_ordering_rules)
 print(pages_to_produce)
 
-sum_middle_pages = 0
-for i, print_job in enumerate(pages_to_produce):
-    print(f"checking print job {i+1}: {print_job}")
-    all_ok = True
+def pages_in_order(print_job: list[int]) -> bool:
     for before, afters in page_ordering_rules.items():
         for after in afters:
             try:
@@ -32,15 +29,16 @@ for i, print_job in enumerate(pages_to_produce):
                 after_pos = print_job.index(after)
                 if before_pos > after_pos:
                     print(f"  {before} at {before_pos} is not before {after} at {after_pos}")
-                    all_ok = False
-                    break
+                    return False
             except ValueError:  # before and/or after not in print_job
                 # rule does not apply
                 pass
-        if not all_ok:
-            break
+    return True
 
-    if all_ok:
+sum_middle_pages = 0
+for i, print_job in enumerate(pages_to_produce):
+    print(f"checking print job {i+1}: {print_job}")
+    if pages_in_order(print_job):
         assert len(print_job) % 2 == 1  # assume odd number of pages
         middle_page = print_job[len(print_job)//2]
         sum_middle_pages += middle_page
