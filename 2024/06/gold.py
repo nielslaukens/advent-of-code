@@ -126,36 +126,22 @@ print(f"Guard visited {guard_visited_positions.num_positions()} different positi
       f"({guard_visited_positions.num_positions_and_orientations()} including different orientations)")
 print()
 
-# now walk again, but for every position, try to place an obstacle in front and see if we end up in a loop
+# We can place obstacles anywhere, but it will only make a difference if
+# we're encountering one on our path
+# We just calculated all positions that we normally visit. So these are
+# the locations where an obstacle would actually make a difference
 obstacle_opportunities: set[tuple[int, int]] = set()
-try:
-    while True:  # until IndexError
-        position_in_front = guard.position_in_front()
-        if position_in_front in obstacle_coordinates:
-            pass  # already obstacle there, can't place one extra
-        else:
-            # place an obstacle in front of guard
-            obs_coord_extra_obs = obstacle_coordinates.union({position_in_front})
-            try:
-                # We need to walk from *the start*
-                # Otherwise we may end up placing an obstruction "in front of us" in a position that we can't even reach
-                # anymore because this obstructions would have altered our path to here
-                walk_until_out_of_map(guard_start, obs_coord_extra_obs)
-            except IndexError as e:
-                # we exited the map => placing an obstacle in front does not result in a Loop
-                pass
-            except CycleDetected as e:
-                # we entered a loop
-                obstacle_opportunities.add(position_in_front)
+possible_obstacle_locations = set(guard_visited_positions.pos.keys())
+possible_obstacle_locations.remove(guard_start.position)
+for extra_obstacle in possible_obstacle_locations:
+    augmented_obstacles = obstacle_coordinates.union({extra_obstacle})
+    try:
+        walk_until_out_of_map(guard_start, augmented_obstacles)
+    except IndexError as e:
+        # exited map, this does not result in a loop
+        pass
+    except CycleDetected as e:
+        # loop
+        obstacle_opportunities.add(extra_obstacle)
 
-        guard = guard.next_pos(obstacle_coordinates)
-except IndexError as e:
-    # exited map
-    pass
-
-assert len(obstacle_opportunities.intersection(obstacle_coordinates)) == 0
-
-print(f"{len(obstacle_opportunities)} obstacle opportunities: {obstacle_opportunities}")
-# 1704 too high
-# 1740 too high
-# 1781 too high
+print(f"{len(obstacle_opportunities)} opportunities: {obstacle_opportunities}")
