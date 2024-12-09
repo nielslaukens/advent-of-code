@@ -31,9 +31,37 @@ with open("input.txt", "r") as f:
             state = 'file'
         else:
             raise RuntimeError(f"Unknown state {state}")
-        compressed_disk_map.append(f)
+        if f.length > 0:
+            compressed_disk_map.append(f)
 
 print(compressed_disk_map)
+
+
+def defragment_compressed_disk_map(indices: list[int]) -> list[int]:
+    global compressed_disk_map
+    # now defragment free space
+    new_compressed_disk_map = []
+    new_indices = [None] * len(indices)
+    for old_idx, stretch in enumerate(compressed_disk_map):
+        new_idx = len(new_compressed_disk_map)
+
+        if len(new_compressed_disk_map) > 0:
+            if new_compressed_disk_map[-1].file_id == stretch.file_id:
+                # combine into previous segment
+                assert new_compressed_disk_map[-1].file_id is None
+                new_compressed_disk_map[-1].length += stretch.length
+                stretch.length = 0
+        if stretch.length == 0:
+            pass  # swallow 0-length segments
+        else:
+            new_compressed_disk_map.append(stretch)
+
+        for i, j in enumerate(indices):
+            if old_idx == j:
+                new_indices[i] = new_idx
+
+    compressed_disk_map = new_compressed_disk_map
+    return new_indices
 
 
 def move_file_to_free_space(location_of_file: int, location_of_free_space: int) -> tuple[int, int]:
@@ -58,30 +86,18 @@ def move_file_to_free_space(location_of_file: int, location_of_free_space: int) 
     location_of_file, location_of_free_space = location_of_free_space, location_of_file+1
     # location_of_file + 1 because we split the free space up into 2 parts (of possible 0-length)
 
-    # now defragment free space
-    new_compressed_disk_map = []
-    for old_idx, stretch in enumerate(compressed_disk_map):
-        new_idx = len(new_compressed_disk_map)
-
-        if len(new_compressed_disk_map) > 0:
-            if new_compressed_disk_map[-1].file_id == stretch.file_id:
-                # combine into previous segment
-                assert new_compressed_disk_map[-1].file_id is None
-                new_compressed_disk_map[-1].length += stretch.length
-                stretch.length = 0
-        if stretch.length == 0:
-            pass  # swallow 0-length segments
-        else:
-            new_compressed_disk_map.append(stretch)
-
-        if old_idx == location_of_file:
-            location_of_file = new_idx
-        if old_idx == location_of_free_space:
-            location_of_free_space = new_idx
-
-    compressed_disk_map = new_compressed_disk_map
+    #location_of_file, location_of_free_space = defragment_compressed_disk_map([location_of_file, location_of_free_space])
 
     return location_of_file, location_of_free_space
+
+
+def find_free_space(length: int) -> int | None:
+    for stretch_location, stretch in enumerate(compressed_disk_map):
+        if (stretch.file_id is None  # free space
+                and stretch.length >= length  # large enough
+        ):
+            return stretch_location
+    return None
 
 
 location_to_relocate = len(compressed_disk_map) - 1
@@ -95,13 +111,7 @@ while location_to_relocate > 0:
         continue
 
     # scan for free space large enough
-    free_space_location = None
-    for stretch_location, stretch in enumerate(compressed_disk_map):
-        if (stretch.file_id is None  # free space
-                and stretch.length >= file.length  # large enough
-        ):
-            free_space_location = stretch_location
-            break
+    free_space_location = find_free_space(file.length)
     if free_space_location is not None and free_space_location < location_to_relocate:
         #print(f"moving file_id {file.file_id} to free space at {free_space_location}")
         file.already_moved = True
