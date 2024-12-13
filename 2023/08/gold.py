@@ -1,6 +1,7 @@
 import math
 
-from tools.cycle_detect import CycleDetector, CycleInfo, lcm_with_offset
+from tools.cycle_detect import CycleDetector, CycleInfo
+from tools.int_tools import lcm_with_offset
 
 nodes: dict[str, dict[str, str]] = {}
 with open("input.txt", "r") as f:
