@@ -2,6 +2,8 @@ import dataclasses
 
 import numpy as np
 
+from tools.int_tools import matrix_inverse
+
 
 @dataclasses.dataclass
 class Machine:
@@ -49,17 +51,13 @@ for machine in machines:
     print(machine)
     base = np.array([[machine.button_a[0], machine.button_a[1]],
                      [machine.button_b[0], machine.button_b[1]]]).transpose()
-    invbase = np.linalg.inv(base)
+    invbase = matrix_inverse(base)
     prize = np.array([[machine.prize[0]], [machine.prize[1]]])
     new_coords = np.matmul(invbase, prize)
-    # new_coords is in floating point, check if we actually found something:
     new_coords = (new_coords[0][0], new_coords[1][0])
-    new_coords_int = (round(new_coords[0]), round(new_coords[1]))
-    if new_coords_int[0] * machine.button_a[0] + new_coords_int[1] * machine.button_b[0] == machine.prize[0] and \
-            new_coords_int[0] * machine.button_a[1] + new_coords_int[1] * machine.button_b[1] == machine.prize[1]:
-        # confirmed
-        cost = 3*new_coords_int[0] + 1*new_coords_int[1]
-        print(f"{new_coords_int} => {cost}")
+    if new_coords[0].denominator == 1 and new_coords[1].denominator == 1:
+        cost = 3*new_coords[0] + 1*new_coords[1]
+        print(f"{new_coords} => {cost} ({total_cost})")
         total_cost += cost
     else:
         print("not", new_coords)
