@@ -1,4 +1,5 @@
 import math
+import typing
 from fractions import Fraction
 
 import numpy as np
@@ -122,6 +123,16 @@ def matrix_inverse(m: np.ndarray) -> np.ndarray:
     return inv
 
 
+NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
+def tuple_add(a: NTuple, b: NTuple) -> NTuple:
+    if len(a) != len(b):
+        raise ValueError(f"Different number of dimensions: {len(a)} != {len(b)}")
+    return tuple(
+        a[d] + b[d]
+        for d in range(len(a))
+    )
+
+
 if __name__ == "__main__":
     assert lcm_with_offset(3, 0, 5, 1) == (3, 2)
     assert lcm_with_offset(3, 1, 5, 0) == (2, 1)
@@ -139,3 +150,5 @@ if __name__ == "__main__":
     assert matrix_determinant(A) == -2
     B = matrix_inverse(A)
     assert np.all(np.matmul(A, B) == np.eye(2))
+
+    assert tuple_add((1, 2), (3, 4)) == (4, 6)
