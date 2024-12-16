@@ -1,6 +1,5 @@
 import dataclasses
 import enum
-from functools import cached_property
 
 import numpy as np
 
@@ -96,13 +95,15 @@ class State:
     current_dir: Direction
 
     _history: list[Action] = dataclasses.field(default_factory=list)
+    _score: int = None
 
-    @cached_property
+    @property
     def score(self) -> int:
-        score = 0
-        for action in self._history:
-            score += action.points
-        return score
+        if self._score is None:
+            self._score = 0
+            for action in self._history:
+                self._score += action.points
+        return self._score
 
     def summary(self) -> str:
         return ''.join([
@@ -125,6 +126,7 @@ class State:
         return State(
             new_pos, new_dir,
             [*self._history, action],
+            _score=self.score + action.points,
         )
 
     def options(self) -> list["State"]:
@@ -149,7 +151,7 @@ class State:
         return coords
 
 
-state = State(start_pos, start_dir)
+state = State(start_pos, start_dir, [], 0)
 best_score_so_far = np.full([*maze.shape, 4], None)
 it = for_sendable_generator(traverse_breath_first(
     state,

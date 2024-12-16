@@ -43,6 +43,8 @@ if __name__ == "__main__":
     }
     costs = floyd_warshall(edges)
     assert costs[0][2] == 3
+    assert 1 not in costs[2]
+    assert 0 not in costs[2]
 
     edges = {
         ('0', '1a'): 1,
@@ -52,5 +54,8 @@ if __name__ == "__main__":
     }
     costs = floyd_warshall(edges)
     assert costs['0']['2'] == 2
+    assert '1a' not in costs['2']
+    assert '1b' not in costs['2']
+    assert '0' not in costs['2']
 
     print("done")
