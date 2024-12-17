@@ -85,6 +85,9 @@ def linear_diophantine(a: int, b: int, c: int) -> tuple[int, int, int, int]:
 
 
 def matrix_minor(m: np.array, row: int, col: int) -> np.array:
+    """
+    Returns the matrix `m` with row `row` and column `col` removed
+    """
     without_row = m[
         [_ for _ in range(m.shape[0]) if _ != row],
         :,
@@ -97,6 +100,10 @@ def matrix_minor(m: np.array, row: int, col: int) -> np.array:
 
 
 def matrix_determinant(m: np.ndarray) -> Fraction | int:
+    """
+    Returns the determinant of the given matrix.
+    Similar to numpy.linalg.det(), but keeps integers instead of going to float
+    """
     if m.shape[0] != m.shape[1]:
         raise ValueError(f"Expected square matrix, got {m.shape}")
     N = m.shape[0]
@@ -112,7 +119,7 @@ def matrix_determinant(m: np.ndarray) -> Fraction | int:
 
 def matrix_inverse(m: np.ndarray) -> np.ndarray:
     """
-    Does np.inverse(m), but returns Fractions instead of floats
+    Does numpy.inverse(m), but returns Fractions instead of floats
     """
     det = matrix_determinant(m)
     inv = np.empty(m.shape, dtype='object')
@@ -125,6 +132,9 @@ def matrix_inverse(m: np.ndarray) -> np.ndarray:
 
 NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
 def tuple_add(a: NTuple, b: NTuple) -> NTuple:
+    """
+    Add two tuples as if they were vectors.
+    """
     if len(a) != len(b):
         raise ValueError(f"Different number of dimensions: {len(a)} != {len(b)}")
     return tuple(

@@ -27,8 +27,11 @@ def flood_fill(
         filled: set[tuple[int, ...]] = None,
 ) -> set[tuple[int, ...]]:
     """
-    :param grid: Called to get the value at a given location. Should raise IndexError if out of bounds
-    :param start_position:
+    Fill a grid by starting at `start_position` and expanding to grid locations
+    that have the same value as `grid(start_position)`.
+    :param grid: Called to get the value at a given location. Should raise
+                 IndexError if out of bounds
+    :param start_position: Coordinates to start from
     """
     if filled is None:
         filled: set[tuple[int, ...]] = set()
@@ -47,6 +50,9 @@ def flood_fill(
 
 
 def nested_array_func(array: list) -> typing.Callable[[tuple[int, ...]], typing.Any]:
+    """
+    Helper function that allows you to index a nested list-of-lists with a tuple.
+    """
     def get_element(loc: tuple[int, ...]) -> typing.Any:
         p = array
         for dim in range(len(loc)):

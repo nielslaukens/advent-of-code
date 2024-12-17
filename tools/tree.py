@@ -1,9 +1,10 @@
 """
 Tree traversal Generators.
 
-You can optionally send(True) to a generator to indicate the children of this
-node do not have to be visited. This obviously only works in Breath-First, and
-in Depth-First Pre-order.
+Instead of pruning branches in the `branches()` callable, you can also
+`gen.send(True)` to a generator to indicate the children of the current (i.e.
+most recently yielded) node do not have to be visited. This obviously only works
+in Breath-First, and in Depth-First Pre-order.
 """
 import enum
 import typing
@@ -99,31 +100,32 @@ if __name__ == "__main__":
         ]),
     ])
 
-    print("Depth first:")
-    for n in traverse_depth_first(
-            tree,
-            lambda n: n.branches,
-            Order.LeafOnly,
-    ):
-        print(n.name)
+    # Depth first
+    result = []
+    for n in traverse_depth_first(tree, lambda n: n.branches, Order.LeafOnly):
+        result.append(n.name)
+    assert result == ['aa', 'ba', 'bb', 'ca', 'cba', 'cbb']
 
-    print("Breath first:")
-    for n in traverse_breath_first(
-            tree,
-            lambda n: n.branches,
-    ):
-        print(n.name)
+    # Breath first
+    result = []
+    for n in traverse_breath_first(tree, lambda n: n.branches):
+        result.append(n.name)
+    assert result == ['root', 'a', 'b', 'c', 'aa', 'ba', 'bb', 'ca', 'cb', 'cba', 'cbb']
 
-    print("Depth first with skip of `b`:")
+    # Depth first with skip of `b`
+    result = []
     it = for_sendable_generator(traverse_depth_first(tree, lambda n: n.branches, Order.Pre))
     for n in it:
-        print(n.name)
+        result.append(n.name)
         if n.name == "b":
             it.send(True)
+    assert result == ['root', 'a', 'aa', 'b', 'c', 'ca', 'cb', 'cba', 'cbb']
 
-    print("Breath first with skip of `b`:")
+    # Breath first with skip of `b`
+    result = []
     it = for_sendable_generator(traverse_breath_first(tree, lambda n: n.branches))
     for n in it:
-        print(n.name)
+        result.append(n.name)
         if n.name == "b":
             it.send(True)
+    assert result == ['root', 'a', 'b', 'c', 'aa', 'ca', 'cb', 'cba', 'cbb']

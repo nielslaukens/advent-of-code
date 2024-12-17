@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import typing
 
-from tools.mapping import Mapping
-
 
 class Slices:
     """

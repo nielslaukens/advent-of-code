@@ -1,8 +1,6 @@
 import dataclasses
 import typing
 
-from tools.int_tools import lcm_with_offset, extended_gcd
-
 NO_INITIAL_STATE = object()
 
 

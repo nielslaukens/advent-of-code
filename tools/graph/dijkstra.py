@@ -7,8 +7,8 @@ NodeId = typing.TypeVar('NodeId', bound=typing.Hashable)
 
 @dataclasses.dataclass
 class NextHop:
-    next_hop: NodeId
-    cost: int
+    next_hop: NodeId | None
+    cost: int | None
 
 
 def dijkstra(
@@ -22,8 +22,8 @@ def dijkstra(
     :return: Cost & path from each node to the given destination node
     """
     nodes: typing.Dict[typing.Hashable, NextHop] = {}
-    outgoing_edges = {}  # outgoing_edges[from][to] = cost
-    inbound_edges = {}  # inbound_edges[to][from] = cost
+    outgoing_edges: dict[NodeId, dict[NodeId, int]] = {}  # outgoing_edges[from][to] = cost
+    inbound_edges: dict[NodeId, dict[NodeId, int]] = {}  # inbound_edges[to][from] = cost
     for node_from, node_to in edge_costs.keys():
         nodes[node_from] = NextHop(None, None)
         nodes[node_to] = NextHop(None, None)

@@ -1,3 +1,6 @@
+"""
+Deprecated: Use tree.py instead
+"""
 from __future__ import annotations
 
 import math
