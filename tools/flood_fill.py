@@ -1,7 +1,8 @@
 import typing
 
 
-def adjacent_positions(location: tuple[int, ...]) -> typing.Generator[tuple[int, ...], None, None]:
+NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
+def adjacent_positions(location: NTuple) -> typing.Generator[NTuple, None, None]:
     """
     Multi-dimensional adjacency iterator
     :param location: n-tuple of starting coordinates
