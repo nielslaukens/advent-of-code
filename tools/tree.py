@@ -6,50 +6,141 @@ Instead of pruning branches in the `branches()` callable, you can also
 most recently yielded) node do not have to be visited. This obviously only works
 in Breath-First, and in Depth-First Pre-order.
 """
+from __future__ import annotations
+
 import enum
 import typing
 
 Node = typing.TypeVar('Node')
+NOTHING = object()  # Used as `None` without actually being `None`
 
 
 class Order(enum.Enum):
-    Pre = enum.auto()
-    Post = enum.auto()
-    LeafOnly = enum.auto()  # Only yield nodes without branches
+    BreathFirst = enum.auto()
+    DepthFirstPre = enum.auto()
+    DepthFirstPost = enum.auto()
 
 
-def traverse_depth_first(
-        start_node: Node,
-        branches: typing.Callable[[Node], typing.Iterable[Node]],
-        order: Order = Order.Pre,
-) -> typing.Generator[Node, bool | None, None]:
-    skip = False
-    if order == Order.Pre:
-        skip = yield start_node
+class TraverseTree:
+    def __init__(self):
+        pass
 
-    leaf = True
-    if not skip:
-        for branch in branches(start_node):
-            yield from traverse_depth_first(branch, branches, order)
-            leaf = False
+    def __iter__(self) -> TraverseTree:
+        return self
 
-    if leaf and order == Order.LeafOnly:
-        yield start_node
+    def __next__(self) -> Node:
+        raise NotImplementedError()
 
-    if order == Order.Post:
-        yield start_node
+    def next_breath_pre(self) -> Node:
+        if self._descend_into_current_node and self._current_node is not NOTHING:
+            branches = self.branches(self._current_node)
+            if self.order == Order.BreathFirst:
+                # branches are scanned at the end of the queue
+                self.node_queue.extend(branches)
+            elif self.order == Order.DepthFirstPre:
+                # branches are scanned next
+                self.node_queue = [*branches, *self.node_queue]
+        if len(self.node_queue) == 0:
+            raise StopIteration()
+        self._descend_into_current_node = True
+        return self.node_queue.pop(0)
+
+
+class TraverseTreeBreathFirst(TraverseTree):
+    def __init__(
+            self,
+            start_node: Node,
+            branches: typing.Callable[[Node], typing.Iterable[Node]],
+    ):
+        super().__init__()
+        self.node_queue = [start_node]
+        self.branches = branches
+        self._current_node = NOTHING
+        self._descend_into_current_node = True
+
+    def __iter__(self) -> TraverseTree:
+        return self
+
+    def __next__(self) -> Node:
+        if self._descend_into_current_node and self._current_node is not NOTHING:
+            branches = self.branches(self._current_node)
+            self.node_queue.extend(branches)
+        if len(self.node_queue) == 0:
+            raise StopIteration()
+        self._descend_into_current_node = True
+        self._current_node = self.node_queue.pop(0)
+        return self._current_node
+
+    def dont_descend_into_current_node(self) -> None:
+        self._descend_into_current_node = False
+
+
+class TraverseTreeDepthFirstPre(TraverseTree):
+    def __init__(
+            self,
+            start_node: Node,
+            branches: typing.Callable[[Node], typing.Iterable[Node]],
+    ):
+        super().__init__()
+        self.node_queue = [start_node]
+        self.branches = branches
+        self._current_node = NOTHING
+        self._descend_into_current_node = True
+
+    def __next__(self) -> Node:
+        if self._descend_into_current_node and self._current_node is not NOTHING:
+            branches = self.branches(self._current_node)
+            self.node_queue = [*branches, *self.node_queue]
+        if len(self.node_queue) == 0:
+            raise StopIteration()
+        self._descend_into_current_node = True
+        self._current_node = self.node_queue.pop(0)
+        return self._current_node
+
+    def dont_descend_into_current_node(self) -> None:
+        self._descend_into_current_node = False
+
+
+class TraverseTreeDepthFirstPost(TraverseTree):
+    def __init__(
+            self,
+            start_node: Node,
+            branches: typing.Callable[[Node], typing.Iterable[Node]],
+    ):
+        super().__init__()
+        self.stack: list[tuple[Node, list[Node] | None, int]] = [
+            (start_node, list(branches(start_node)), 0)
+        ]
+        self.branches = branches
+
+    def __next__(self) -> Node:
+        if len(self.stack) == 0:
+            raise StopIteration()
+
+        node, branches, branch_nr = self.stack.pop(-1)
+        while True:  # until at leaf
+            if branch_nr == len(branches):
+                return node
+                # this level is done, don't push back on stack
+            # else:
+            self.stack.append((node, branches, branch_nr+1))
+            node = branches[branch_nr]
+            branches = list(self.branches(node))
+            branch_nr = 0
+
+
+# DEPRECATED FUNCTIONS BELOW
 
 
 def traverse_breath_first(
         start_node: Node,
         branches: typing.Callable[[Node], typing.Iterable[Node]],
 ) -> typing.Generator[Node, bool | None, None]:
-    subbranches = [start_node]
-    while len(subbranches) > 0:
-        node = subbranches.pop(0)
-        skip = yield node
-        if not skip:
-            subbranches.extend(branches(node))
+    it = TraverseTreeBreathFirst(start_node, branches)
+    for el in it:
+        rx = yield el
+        if rx:
+            it.dont_descend_into_current_node()
 
 
 GenType = typing.TypeVar("GenType", bound=typing.Generator)
@@ -100,28 +191,49 @@ if __name__ == "__main__":
         ]),
     ])
 
-    # Depth first
+    # Depth first, pre order
     result = []
-    for n in traverse_depth_first(tree, lambda n: n.branches, Order.LeafOnly):
+    for n in TraverseTreeDepthFirstPre(tree, lambda n: n.branches):
         result.append(n.name)
-    assert result == ['aa', 'ba', 'bb', 'ca', 'cba', 'cbb']
+    assert result == ['root', 'a', 'aa', 'b', 'ba', 'bb', 'c', 'ca', 'cb', 'cba', 'cbb']
 
+    # Depth first, pre order, skip `b`
+    result = []
+    it = TraverseTreeDepthFirstPre(tree, lambda n: n.branches)
+    for n in it:
+        result.append(n.name)
+        if n.name == 'b':
+            it.dont_descend_into_current_node()
+    assert result == ['root', 'a', 'aa', 'b', 'c', 'ca', 'cb', 'cba', 'cbb']
+
+    # Depth first, post order
+    result = []
+    for n in TraverseTreeDepthFirstPost(tree, lambda n: n.branches):
+        result.append(n.name)
+    assert result == ['aa', 'a', 'ba', 'bb', 'b', 'ca', 'cba', 'cbb', 'cb', 'c', 'root']
+
+    # Breath first
+    result = []
+    for n in TraverseTreeBreathFirst(tree, lambda n: n.branches):
+        result.append(n.name)
+    assert result == ['root', 'a', 'b', 'c', 'aa', 'ba', 'bb', 'ca', 'cb', 'cba', 'cbb']
+
+    # Breath first with skip of `b`
+    result = []
+    it = TraverseTreeBreathFirst(tree, lambda n: n.branches)
+    for n in it:
+        result.append(n.name)
+        if n.name == "b":
+            it.dont_descend_into_current_node()
+    assert result == ['root', 'a', 'b', 'c', 'aa', 'ca', 'cb', 'cba', 'cbb']
+
+    # legacy below
     # Breath first
     result = []
     for n in traverse_breath_first(tree, lambda n: n.branches):
         result.append(n.name)
     assert result == ['root', 'a', 'b', 'c', 'aa', 'ba', 'bb', 'ca', 'cb', 'cba', 'cbb']
 
-    # Depth first with skip of `b`
-    result = []
-    it = for_sendable_generator(traverse_depth_first(tree, lambda n: n.branches, Order.Pre))
-    for n in it:
-        result.append(n.name)
-        if n.name == "b":
-            it.send(True)
-    assert result == ['root', 'a', 'aa', 'b', 'c', 'ca', 'cb', 'cba', 'cbb']
-
-    # Breath first with skip of `b`
     result = []
     it = for_sendable_generator(traverse_breath_first(tree, lambda n: n.branches))
     for n in it:
@@ -129,3 +241,4 @@ if __name__ == "__main__":
         if n.name == "b":
             it.send(True)
     assert result == ['root', 'a', 'b', 'c', 'aa', 'ca', 'cb', 'cba', 'cbb']
+
