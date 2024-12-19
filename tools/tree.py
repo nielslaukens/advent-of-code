@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import enum
 import typing
+import collections
 
 Node = typing.TypeVar('Node')
 NOTHING = object()  # Used as `None` without actually being `None`
@@ -23,27 +24,21 @@ class Order(enum.Enum):
 
 class TraverseTree:
     def __init__(self):
-        pass
+        self._nodes_visited = 0
 
     def __iter__(self) -> TraverseTree:
         return self
 
     def __next__(self) -> Node:
+        self._nodes_visited += 1
+        return self.next()
+
+    def next(self) -> Node:
         raise NotImplementedError()
 
-    def next_breath_pre(self) -> Node:
-        if self._descend_into_current_node and self._current_node is not NOTHING:
-            branches = self.branches(self._current_node)
-            if self.order == Order.BreathFirst:
-                # branches are scanned at the end of the queue
-                self.node_queue.extend(branches)
-            elif self.order == Order.DepthFirstPre:
-                # branches are scanned next
-                self.node_queue = [*branches, *self.node_queue]
-        if len(self.node_queue) == 0:
-            raise StopIteration()
-        self._descend_into_current_node = True
-        return self.node_queue.pop(0)
+    @property
+    def nodes_visited(self) -> int:
+        return self._nodes_visited
 
 
 class TraverseTreeBreathFirst(TraverseTree):
@@ -53,7 +48,7 @@ class TraverseTreeBreathFirst(TraverseTree):
             branches: typing.Callable[[Node], typing.Iterable[Node]],
     ):
         super().__init__()
-        self.node_queue = [start_node]
+        self.node_queue = collections.deque([start_node])
         self.branches = branches
         self._current_node = NOTHING
         self._descend_into_current_node = True
@@ -61,15 +56,16 @@ class TraverseTreeBreathFirst(TraverseTree):
     def __iter__(self) -> TraverseTree:
         return self
 
-    def __next__(self) -> Node:
+    def next(self) -> Node:
         if self._descend_into_current_node and self._current_node is not NOTHING:
             branches = self.branches(self._current_node)
             self.node_queue.extend(branches)
-        if len(self.node_queue) == 0:
+        try:
+            self._descend_into_current_node = True
+            self._current_node = self.node_queue.popleft()  # raises IndexError when empty
+            return self._current_node
+        except IndexError:
             raise StopIteration()
-        self._descend_into_current_node = True
-        self._current_node = self.node_queue.pop(0)
-        return self._current_node
 
     def dont_descend_into_current_node(self) -> None:
         self._descend_into_current_node = False
@@ -82,20 +78,21 @@ class TraverseTreeDepthFirstPre(TraverseTree):
             branches: typing.Callable[[Node], typing.Iterable[Node]],
     ):
         super().__init__()
-        self.node_queue = [start_node]
+        self.node_queue = collections.deque([start_node])
         self.branches = branches
         self._current_node = NOTHING
         self._descend_into_current_node = True
 
-    def __next__(self) -> Node:
+    def next(self) -> Node:
         if self._descend_into_current_node and self._current_node is not NOTHING:
-            branches = self.branches(self._current_node)
-            self.node_queue = [*branches, *self.node_queue]
-        if len(self.node_queue) == 0:
+            branches = list(self.branches(self._current_node))
+            self.node_queue.extendleft(reversed(branches))
+        try:
+            self._descend_into_current_node = True
+            self._current_node = self.node_queue.popleft()  # raises IndexError when empty
+            return self._current_node
+        except IndexError:
             raise StopIteration()
-        self._descend_into_current_node = True
-        self._current_node = self.node_queue.pop(0)
-        return self._current_node
 
     def dont_descend_into_current_node(self) -> None:
         self._descend_into_current_node = False
@@ -113,7 +110,7 @@ class TraverseTreeDepthFirstPost(TraverseTree):
         ]
         self.branches = branches
 
-    def __next__(self) -> Node:
+    def next(self) -> Node:
         if len(self.stack) == 0:
             raise StopIteration()
 
