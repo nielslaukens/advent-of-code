@@ -41,7 +41,7 @@ class TraverseTree:
         return self._nodes_visited
 
 
-class TraverseTreeBreathFirst(TraverseTree):
+class _TraverseTree_BreathFirst_or_DepthFirstPre(TraverseTree):
     def __init__(
             self,
             start_node: Node,
@@ -53,13 +53,12 @@ class TraverseTreeBreathFirst(TraverseTree):
         self._current_node = NOTHING
         self._descend_into_current_node = True
 
-    def __iter__(self) -> TraverseTree:
-        return self
+    def dont_descend_into_current_node(self) -> None:
+        self._descend_into_current_node = False
 
     def next(self) -> Node:
         if self._descend_into_current_node and self._current_node is not NOTHING:
-            branches = self.branches(self._current_node)
-            self.node_queue.extend(branches)
+            self._extend_node_queue(self.branches(self._current_node))
         try:
             self._descend_into_current_node = True
             self._current_node = self.node_queue.popleft()  # raises IndexError when empty
@@ -67,35 +66,20 @@ class TraverseTreeBreathFirst(TraverseTree):
         except IndexError:
             raise StopIteration()
 
-    def dont_descend_into_current_node(self) -> None:
-        self._descend_into_current_node = False
+    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
+        raise NotImplementedError()
 
 
-class TraverseTreeDepthFirstPre(TraverseTree):
-    def __init__(
-            self,
-            start_node: Node,
-            branches: typing.Callable[[Node], typing.Iterable[Node]],
-    ):
-        super().__init__()
-        self.node_queue = collections.deque([start_node])
-        self.branches = branches
-        self._current_node = NOTHING
-        self._descend_into_current_node = True
+class TraverseTreeBreathFirst(_TraverseTree_BreathFirst_or_DepthFirstPre):
+    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
+        self.node_queue.extend(branches)
 
-    def next(self) -> Node:
-        if self._descend_into_current_node and self._current_node is not NOTHING:
-            branches = list(self.branches(self._current_node))
-            self.node_queue.extendleft(reversed(branches))
-        try:
-            self._descend_into_current_node = True
-            self._current_node = self.node_queue.popleft()  # raises IndexError when empty
-            return self._current_node
-        except IndexError:
-            raise StopIteration()
 
-    def dont_descend_into_current_node(self) -> None:
-        self._descend_into_current_node = False
+class TraverseTreeDepthFirstPre(_TraverseTree_BreathFirst_or_DepthFirstPre):
+    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
+        branches = list(branches)
+        self.node_queue.extendleft(reversed(branches))
+        # extendLeft reverses the order, so reverse it beforehand
 
 
 class TraverseTreeDepthFirstPost(TraverseTree):
