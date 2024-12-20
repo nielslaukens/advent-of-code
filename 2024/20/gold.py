@@ -7,10 +7,11 @@ import typing
 import numpy as np
 
 from tools.flood_fill import nested_array_func, adjacent_positions
-from tools.numpy_tools import index_in_shape
 from tools.tree import TraverseTreeBreathFirst
+from tools.tuple_tools import positions_within_distance, manhattan_distance, index_in_range
 
 MAX_CHEAT = 20
+MIN_SAVING = 100
 with open("input.txt", "r") as f:
     grid = [
         list(line.strip())
@@ -75,28 +76,20 @@ print(f"Normal cost: {normal_cost_to_end}")
 # We don't need to know the path(s) themselves
 
 
-def positions_within_N_steps(pos: tuple[int, int], n: int) -> typing.Generator[tuple[int, int], None, None]:
-    for y in range(pos[0]-n, pos[0]+n+1):
-        for x in range(pos[1]-n, pos[1]+n+1):
-            manhattan_distance = abs(y-pos[0]) + abs(x-pos[1])
-            if manhattan_distance <= n:
-                yield y, x
-
-
 def cheats_from(pos: tuple[int, int]) -> dict[int, int]:
     if nested_array_func(grid)(pos) != ".":
         # cheats must start on track, so ignore this
         return {}
     cheats = {}
-    for reachable_pos in positions_within_N_steps(pos, MAX_CHEAT):
-        if not index_in_shape(reachable_pos, cost_map.shape):
+    for reachable_pos in positions_within_distance(pos, MAX_CHEAT):
+        if not index_in_range(reachable_pos, cost_map.shape):
             continue
         if nested_array_func(grid)(reachable_pos) != '.':
             # we can only exit on track
             continue
         normal_cost_to_reachable_pos = cost_map[reachable_pos].cost
-        manhattan_distance = abs(pos[0]-reachable_pos[0]) + abs(pos[1]-reachable_pos[1])
-        cost_via_cheat_to_reachable_pos = cost_map[pos].cost + manhattan_distance
+        d = manhattan_distance(pos, reachable_pos)
+        cost_via_cheat_to_reachable_pos = cost_map[pos].cost + d
         if cost_via_cheat_to_reachable_pos < normal_cost_to_reachable_pos:
             savings = normal_cost_to_reachable_pos - cost_via_cheat_to_reachable_pos
             # print(f"Found cheat {pos} -> {reachable_pos} saving "
@@ -117,10 +110,10 @@ for y in range(len(grid)):
             cheats.setdefault(shorter, 0)
             cheats[shorter] += cheats_from_pos
 
-at_least_100_saving = 0
+at_least_saving = 0
 for save in sorted(cheats.keys()):
     print(f"{cheats[save]} cheats that save {save}")
-    if save >= 100:
-        at_least_100_saving += cheats[save]
+    if save >= MIN_SAVING:
+        at_least_saving += cheats[save]
 
-print(at_least_100_saving)
+print(at_least_saving)

@@ -1,25 +1,6 @@
 import typing
 
-
-NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
-def adjacent_positions(location: NTuple) -> typing.Generator[NTuple, None, None]:
-    """
-    Multi-dimensional adjacency iterator
-    :param location: n-tuple of starting coordinates
-
-    Note: may return locations out of bounds of your problem. You still need to bound-check these
-    """
-    for dimension in range(len(location)):
-        yield (
-            *location[0:dimension],
-            location[dimension] - 1,
-            *location[dimension+1:],
-        )
-        yield (
-            *location[0:dimension],
-            location[dimension] + 1,
-            *location[dimension+1:],
-        )
+from tools.tuple_tools import adjacent_positions, nested_array_func
 
 
 def flood_fill(
@@ -50,26 +31,7 @@ def flood_fill(
     return filled
 
 
-def nested_array_func(array: list) -> typing.Callable[[tuple[int, ...]], typing.Any]:
-    """
-    Helper function that allows you to index a nested list-of-lists with a tuple.
-    """
-    def get_element(loc: tuple[int, ...]) -> typing.Any:
-        p = array
-        for dim in range(len(loc)):
-            if 0 <= loc[dim] < len(p):
-                p = p[loc[dim]]
-            else:
-                raise IndexError()
-        return p
-    return get_element
-
-
 if __name__ == "__main__":
-    assert set(adjacent_positions((5,))) == {(4,), (6,)}
-    assert set(adjacent_positions((5, 10))) == {(4, 10), (6, 10), (5, 9), (5, 11)}
-    assert set(adjacent_positions((0, 0, 0))) == {(0, 0, 1), (0, 0, -1), (0, 1, 0), (0, -1, 0), (1, 0, 0), (-1, 0, 0)}
-
     grid = [[0, 1, 0],
             [1, 1, 1],
             [0, 1, 0]]

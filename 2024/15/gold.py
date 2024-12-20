@@ -1,9 +1,9 @@
 import enum
-import typing
 
 import numpy as np
 
 from tools.numpy_tools import str_values_only
+from tools.tuple_tools import tuple_add
 
 
 class Direction(enum.Enum):
@@ -23,16 +23,6 @@ class Direction(enum.Enum):
             return (0, -1)
         else:
             raise ValueError(f"unknown value {self}")
-
-
-NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
-def add(a: NTuple, b: NTuple) -> NTuple:
-    if len(a) != len(b):
-        raise ValueError(f"Different number of dimensions: {len(a)} != {len(b)}")
-    return tuple(
-        a[d] + b[d]
-        for d in range(len(a))
-    )
 
 
 warehouse = []
@@ -83,7 +73,7 @@ class Wall(Exception):
 
 
 def push(pos: tuple[int, int], direction: Direction, char: str = 'O', check_only: bool = False) -> tuple[int, int]:
-    new_pos = add(pos, direction.coord())
+    new_pos = tuple_add(pos, direction.coord())
     object_at_new_pos = warehouse[new_pos]
     if object_at_new_pos == '.':
         pass
@@ -96,9 +86,9 @@ def push(pos: tuple[int, int], direction: Direction, char: str = 'O', check_only
             push(new_pos, direction, object_at_new_pos)
         else:  # up/down
             if object_at_new_pos == '[':
-                extra_new_pos = add(new_pos, (0, 1))
+                extra_new_pos = tuple_add(new_pos, (0, 1))
             elif object_at_new_pos == ']':
-                extra_new_pos = add(new_pos, (0, -1))
+                extra_new_pos = tuple_add(new_pos, (0, -1))
             else:
                 raise RuntimeError(f'Expected to find half of box')
             object_at_extra_new_pos = warehouse[extra_new_pos]

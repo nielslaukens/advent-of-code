@@ -3,7 +3,7 @@ import enum
 
 import numpy as np
 
-from tools.int_tools import tuple_add
+from tools.tuple_tools import tuple_add
 from tools.numpy_tools import str_values_only
 from tools.tree import traverse_breath_first, for_sendable_generator
 

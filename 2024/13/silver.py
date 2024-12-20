@@ -2,7 +2,7 @@ import dataclasses
 
 import numpy as np
 
-from tools.int_tools import matrix_inverse
+from tools.matrix_tools import matrix_inverse
 
 
 @dataclasses.dataclass

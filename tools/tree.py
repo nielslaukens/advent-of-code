@@ -1,32 +1,24 @@
 """
-Tree traversal Generators.
-
-Instead of pruning branches in the `branches()` callable, you can also
-`gen.send(True)` to a generator to indicate the children of the current (i.e.
-most recently yielded) node do not have to be visited. This obviously only works
-in Breath-First, and in Depth-First Pre-order.
+Tree traversal
 """
 from __future__ import annotations
 
 import enum
 import typing
 import collections
+import dataclasses
 
 Node = typing.TypeVar('Node')
-NOTHING = object()  # Used as `None` without actually being `None`
 
 
-class Order(enum.Enum):
-    BreathFirst = enum.auto()
-    DepthFirstPre = enum.auto()
-    DepthFirstPost = enum.auto()
-
-
-class TraverseTree:
+class _TraverseTree:
+    """
+    Base class for tree traversal
+    """
     def __init__(self):
         self._nodes_visited = 0
 
-    def __iter__(self) -> TraverseTree:
+    def __iter__(self) -> _TraverseTree:
         return self
 
     def __next__(self) -> Node:
@@ -40,77 +32,151 @@ class TraverseTree:
     def nodes_visited(self) -> int:
         return self._nodes_visited
 
+    # There is no way to find out how many nodes are still to be visited
+    # because branches are only explored on an as-needed basis. We could expose
+    # a count of "currently unexplored branches", but that would be a (sometimes
+    # huge) under-estimation.
+    # Additionally, the branches() callable returns an Iterable, not a (sized)
+    # Collection. We could use operator.length_hint() to work around this, but
+    # that wouldn't solve the above, bigger, problem.
 
-class _TraverseTree_BreathFirst_or_DepthFirstPre(TraverseTree):
+
+class _TraverseTree_BreathFirst_or_DepthFirstPre(_TraverseTree):
+    """
+    Shared logic for both BreathFirst and DepthFirst Pre-order
+    """
     def __init__(
             self,
             start_node: Node,
             branches: typing.Callable[[Node], typing.Iterable[Node]],
     ):
         super().__init__()
-        self.node_queue = collections.deque([start_node])
+        self.node_queue = collections.deque([
+            iter([start_node])
+        ])
         self.branches = branches
-        self._current_node = NOTHING
-        self._descend_into_current_node = True
+        self._current_node: Node = None
+        self._descend_into_current_node: bool = False  # to bootstrap next()
 
     def dont_descend_into_current_node(self) -> None:
         self._descend_into_current_node = False
 
-    def next(self) -> Node:
-        if self._descend_into_current_node and self._current_node is not NOTHING:
-            self._extend_node_queue(self.branches(self._current_node))
-        try:
-            self._descend_into_current_node = True
-            self._current_node = self.node_queue.popleft()  # raises IndexError when empty
-            return self._current_node
-        except IndexError:
-            raise StopIteration()
+    def _get_next_node(self):
+        while True:  # until exception
+            try:
+                next_iter = self.node_queue[0]  # raises IndexError when node_queue is empty
+            except IndexError:
+                raise StopIteration()
+            try:
+                next_node = next(next_iter)  # raises StopIteration when this level is empty
+                return next_node
+            except StopIteration:
+                self.node_queue.popleft()  # will not raise, we got node_queue[0] above
 
-    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
-        raise NotImplementedError()
+    def next(self) -> Node:
+        if self._descend_into_current_node:
+            self._extend_node_queue(iter(self.branches(self._current_node)))
+
+        self._current_node = self._get_next_node()  # may raise StopIteration when done
+        self._descend_into_current_node = True
+        return self._current_node
+
+    def _extend_node_queue(self, branches: typing.Iterator[Node]) -> None:
+        raise NotImplementedError("implemented in derived classes")
 
 
 class TraverseTreeBreathFirst(_TraverseTree_BreathFirst_or_DepthFirstPre):
-    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
-        self.node_queue.extend(branches)
+    """
+    Traverse a tree, Breath First.
+
+    Start at node `start_node`. Branches at a given node should be returned by
+    the `branches` callable. This expects any iterable, so you can use a list,
+    set, generator, ...
+
+    During iteration, you can call TraverseTree.dont_descend_into_current_node()
+    to indicate branches below this node do not need to be explored.
+    """
+    def _extend_node_queue(self, branches: typing.Iterator[Node]) -> None:
+        self.node_queue.append(branches)
 
 
 class TraverseTreeDepthFirstPre(_TraverseTree_BreathFirst_or_DepthFirstPre):
-    def _extend_node_queue(self, branches: typing.Iterable[Node]) -> None:
-        branches = list(branches)
-        self.node_queue.extendleft(reversed(branches))
-        # extendLeft reverses the order, so reverse it beforehand
+    """
+    Traverse a tree, Depth First, pre-order.
+
+    Start at node `start_node`. Branches at a given node should be returned by
+    the `branches` callable. This expects any iterable, so you can use a list,
+    set, generator, ...
+
+    During iteration, you can call TraverseTree.dont_descend_into_current_node()
+    to indicate branches below this node do not need to be explored.
+    """
+    def _extend_node_queue(self, branches: typing.Iterator[Node]) -> None:
+        self.node_queue.appendleft(branches)
 
 
-class TraverseTreeDepthFirstPost(TraverseTree):
+class TraverseTreeDepthFirstPost(_TraverseTree):
+    """
+    Traverse a tree, Depth First, post-order.
+
+    Start at node `start_node`. Branches at a given node should be returned by
+    the `branches` callable. This expects any iterable, so you can use a list,
+    set, generator, ...
+
+    Since nodes are only returned *after* their children, you can't indicate
+    you don't want a subtree explored (cfr breath-first and depth-first
+    pre-order)
+    """
+    @dataclasses.dataclass
+    class StackItem:
+        node: Node
+        remaining_branches: typing.Iterator[Node]
+
     def __init__(
             self,
             start_node: Node,
             branches: typing.Callable[[Node], typing.Iterable[Node]],
     ):
         super().__init__()
-        self.stack: list[tuple[Node, list[Node] | None, int]] = [
-            (start_node, list(branches(start_node)), 0)
-        ]
+        self.stack: collections.deque[TraverseTreeDepthFirstPost.StackItem] = collections.deque([
+            TraverseTreeDepthFirstPost.StackItem(start_node, iter(branches(start_node)))
+        ])
         self.branches = branches
 
     def next(self) -> Node:
         if len(self.stack) == 0:
             raise StopIteration()
+        # else:
+        # stack[-1] and stack.pop() will not raise, since len() != 0
+        #
+        # If we pop() in the loop, we return right after, so there is no way
+        # we can end up with an empty stack after this point
 
-        node, branches, branch_nr = self.stack.pop(-1)
-        while True:  # until at leaf
-            if branch_nr == len(branches):
-                return node
-                # this level is done, don't push back on stack
-            # else:
-            self.stack.append((node, branches, branch_nr+1))
-            node = branches[branch_nr]
-            branches = list(self.branches(node))
-            branch_nr = 0
+        while True:
+            # examine the top of stack (self.stack[-1])
+            try:
+                next_branch = next(self.stack[-1].remaining_branches)
+            except StopIteration:
+                # all branches are done; remove from stack and
+                # return the parent node
+                stack_item = self.stack.pop()
+                return stack_item.node
+
+            # next_branch is the next branch of self.stack[-1].node to explore,
+            # descend into it by appending it to the stack and looping around
+            self.stack.append(TraverseTreeDepthFirstPost.StackItem(
+                next_branch,
+                iter(self.branches(next_branch)),
+            ))
 
 
 # DEPRECATED FUNCTIONS BELOW
+
+
+class Order(enum.Enum):
+    BreathFirst = enum.auto()
+    DepthFirstPre = enum.auto()
+    DepthFirstPost = enum.auto()
 
 
 def traverse_breath_first(
@@ -174,7 +240,7 @@ if __name__ == "__main__":
 
     # Depth first, pre order
     result = []
-    for n in TraverseTreeDepthFirstPre(tree, lambda n: n.branches):
+    for n in TraverseTreeDepthFirstPre(tree, lambda n: iter(n.branches)):
         result.append(n.name)
     assert result == ['root', 'a', 'aa', 'b', 'ba', 'bb', 'c', 'ca', 'cb', 'cba', 'cbb']
 
@@ -189,13 +255,15 @@ if __name__ == "__main__":
 
     # Depth first, post order
     result = []
-    for n in TraverseTreeDepthFirstPost(tree, lambda n: n.branches):
+    it = TraverseTreeDepthFirstPost(tree, lambda n: iter(n.branches))
+    for n in it:
         result.append(n.name)
+        visited = it.nodes_visited
     assert result == ['aa', 'a', 'ba', 'bb', 'b', 'ca', 'cba', 'cbb', 'cb', 'c', 'root']
 
     # Breath first
     result = []
-    for n in TraverseTreeBreathFirst(tree, lambda n: n.branches):
+    for n in TraverseTreeBreathFirst(tree, lambda n: iter(n.branches)):
         result.append(n.name)
     assert result == ['root', 'a', 'b', 'c', 'aa', 'ba', 'bb', 'ca', 'cb', 'cba', 'cbb']
 
@@ -211,12 +279,12 @@ if __name__ == "__main__":
     # legacy below
     # Breath first
     result = []
-    for n in traverse_breath_first(tree, lambda n: n.branches):
+    for n in traverse_breath_first(tree, lambda n: iter(n.branches)):
         result.append(n.name)
     assert result == ['root', 'a', 'b', 'c', 'aa', 'ba', 'bb', 'ca', 'cb', 'cba', 'cbb']
 
     result = []
-    it = for_sendable_generator(traverse_breath_first(tree, lambda n: n.branches))
+    it = for_sendable_generator(traverse_breath_first(tree, lambda n: iter(n.branches)))
     for n in it:
         result.append(n.name)
         if n.name == "b":

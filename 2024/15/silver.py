@@ -1,9 +1,9 @@
 import enum
-import typing
 
 import numpy as np
 
 from tools.numpy_tools import str_values_only
+from tools.tuple_tools import tuple_add
 
 
 class Direction(enum.Enum):
@@ -23,16 +23,6 @@ class Direction(enum.Enum):
             return (0, -1)
         else:
             raise ValueError(f"unknown value {self}")
-
-
-NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
-def add(a: NTuple, b: NTuple) -> NTuple:
-    if len(a) != len(b):
-        raise ValueError(f"Different number of dimensions: {len(a)} != {len(b)}")
-    return tuple(
-        a[d] + b[d]
-        for d in range(len(a))
-    )
 
 
 warehouse = []
@@ -67,7 +57,7 @@ class Wall(Exception):
 
 
 def push(pos: tuple[int, int], direction: Direction, char: str = 'O') -> tuple[int, int]:
-    new_pos = add(pos, direction.coord())
+    new_pos = tuple_add(pos, direction.coord())
     if warehouse[new_pos] == '.':
         pass
     elif warehouse[new_pos] == '#':
