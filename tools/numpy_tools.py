@@ -80,6 +80,12 @@ def one_d_line(
     return line
 
 
+NTuple = typing.TypeVar('NTuple', bound=tuple[int, ...])
+def index_in_shape(index: NTuple, np_shape: NTuple):
+    index = numpy.array(index)
+    return (index >= 0).all() and (index < np_shape).all()
+
+
 if __name__ == "__main__":
     arr = numpy.array([
         [1, 2, 3],
@@ -106,3 +112,10 @@ if __name__ == "__main__":
         arr,
         (1, 1), 3, (1, 1), -1,
     ), numpy.array([1, 5, 9]))
+
+    assert index_in_shape((0, 0), arr.shape)
+    assert index_in_shape((2, 2), arr.shape)
+    assert not index_in_shape((2, 3), arr.shape)
+    assert not index_in_shape((3, 2), arr.shape)
+    assert not index_in_shape((-1, 0), arr.shape)
+    assert not index_in_shape((0, -1), arr.shape)
