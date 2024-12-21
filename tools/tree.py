@@ -305,17 +305,16 @@ if __name__ == "__main__":
             nodes += 1
         return nodes
     print("  tree  |  # nodes |   BF  | DFpre | DFpost")
-    for name, run_test in [
-        ('100w 3d', functools.partial(test, TraverseTreeBreathFirst, branches(100, 3))),
-        (' 10w 6d', functools.partial(test, TraverseTreeBreathFirst, branches(10, 6))),
-        ('  2w19d', functools.partial(test, TraverseTreeBreathFirst, branches(2, 19))),
-    ]:
-        print(f"{name}", end='')
-        nr_nodes = run_test()
+    for wide, deep in [(100, 3), (10, 6), (2, 19)]:
+        print(f"{wide:3d}w{deep:2d}d", end='')
+
+        nr_nodes = test(TraverseTreeDepthFirstPre, branches(wide, deep))
         print(f" | {nr_nodes: 8d}", end='')
+
         for strategy in [TraverseTreeBreathFirst, TraverseTreeDepthFirstPre, TraverseTreeDepthFirstPost]:
-            took = timeit.timeit(run_test, number=3)
+            took = timeit.timeit(lambda: test(strategy, branches(wide, deep)), number=3)
             print(f" | {took:.3f}", end='')
+
         print()
 
     # legacy below
