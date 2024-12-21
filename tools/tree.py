@@ -306,9 +306,9 @@ if __name__ == "__main__":
         return nodes
     print("  tree  |  # nodes |   BF  | DFpre | DFpost")
     for name, run_test in [
-        (' 50w 3d', functools.partial(test, TraverseTreeBreathFirst, branches(50, 3))),
-        (' 10w 5d', functools.partial(test, TraverseTreeBreathFirst, branches(10, 5))),
-        ('  2w16d', functools.partial(test, TraverseTreeBreathFirst, branches(2, 16))),
+        ('100w 3d', functools.partial(test, TraverseTreeBreathFirst, branches(100, 3))),
+        (' 10w 6d', functools.partial(test, TraverseTreeBreathFirst, branches(10, 6))),
+        ('  2w19d', functools.partial(test, TraverseTreeBreathFirst, branches(2, 19))),
     ]:
         print(f"{name}", end='')
         nr_nodes = run_test()

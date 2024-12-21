@@ -12,6 +12,8 @@ def floyd_warshall(
     :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
 
     Note that this does NOT return the path to take to achieve that cost.
+
+    Complexity: O(n^3)
     """
     cost_from_to: dict[NodeId, dict[NodeId, int | None]] = {}
     for edge, cost in edge_costs.items():
