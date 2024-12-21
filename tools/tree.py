@@ -57,9 +57,9 @@ class _TraverseTree_BreathFirst_or_DepthFirstPre(_TraverseTree):
         #  - get the first element
         #  - remove the first element
         #  - append (DepthFirst) or prepend (DepthFirstPre) elements
-        self.node_queue = [
+        self.node_queue = collections.deque([
             iter([start_node])
-        ]
+        ])
 
         self._current_node: Node = None
         self._descend_into_current_node: bool = False  # to bootstrap next()
@@ -77,7 +77,7 @@ class _TraverseTree_BreathFirst_or_DepthFirstPre(_TraverseTree):
                 next_node = next(next_iter)  # raises StopIteration when this level is empty
                 return next_node
             except StopIteration:
-                self.node_queue.pop(0)  # will not raise, we got node_queue[0] above
+                self.node_queue.popleft()  # will not raise, we got node_queue[0] above
 
     def next(self) -> Node:
         if self._descend_into_current_node:
@@ -118,7 +118,7 @@ class TraverseTreeDepthFirstPre(_TraverseTree_BreathFirst_or_DepthFirstPre):
     to indicate branches below this node do not need to be explored.
     """
     def _extend_node_queue(self, branches: typing.Iterator[Node]) -> None:
-        self.node_queue = [branches, *self.node_queue]
+        self.node_queue.appendleft(branches)
 
 
 class TraverseTreeDepthFirstPost(_TraverseTree):
@@ -150,9 +150,9 @@ class TraverseTreeDepthFirstPost(_TraverseTree):
         #  - get the last element
         #  - remove the last element
         #  - append elements
-        self.stack = [
+        self.stack = collections.deque([
             TraverseTreeDepthFirstPost.StackItem(start_node, iter(branches(start_node)))
-        ]
+        ])
 
     def next(self) -> Node:
         if len(self.stack) == 0:
