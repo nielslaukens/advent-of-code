@@ -30,8 +30,8 @@ def matrix_determinant(m: np.ndarray) -> Fraction | int:
         return int(m[0, 0])
     det = 0
     for i in range(N):
-        min = matrix_minor(m, 0, i)
-        det_minor = matrix_determinant(min)
+        minor = matrix_minor(m, 0, i)
+        det_minor = matrix_determinant(minor)
         det += (-1)**i * int(m[0, i]) * det_minor
     return det
 
@@ -42,7 +42,7 @@ def matrix_inverse(m: np.ndarray) -> np.ndarray:
     """
     det = matrix_determinant(m)
     inv = np.empty(m.shape, dtype='object')
-    for el in (it := np.nditer(m, flags=['multi_index'])):
+    for _ in (it := np.nditer(m, flags=['multi_index'])):
         row, col = it.multi_index
         inv[row, col] = (-1)**(row + col) * Fraction(matrix_determinant(matrix_minor(m, row, col)), det)
     inv = inv.transpose()
@@ -57,3 +57,4 @@ if __name__ == "__main__":
     assert matrix_determinant(A) == -2
     B = matrix_inverse(A)
     assert np.all(np.matmul(A, B) == np.eye(2))
+    assert np.all(np.matmul(B, A) == np.eye(2))
