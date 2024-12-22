@@ -11,7 +11,8 @@ def floyd_warshall(
     Calculate the cost between all node-pairs from the listed edge casts.
     :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
 
-    Note that this does NOT return the path to take to achieve that cost.
+    Note that this does NOT return the path to take to achieve that cost;
+    consider using Dijkstra instead.
 
     Complexity: O(n^3)
     """

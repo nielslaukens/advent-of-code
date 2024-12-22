@@ -3,6 +3,7 @@ Tree traversal
 """
 from __future__ import annotations
 
+import abc
 import enum
 import typing
 import collections
@@ -11,7 +12,7 @@ import dataclasses
 Node = typing.TypeVar('Node')
 
 
-class _TraverseTree:
+class _TraverseTree(abc.ABC):
     """
     Base class for tree traversal
     """
@@ -22,11 +23,13 @@ class _TraverseTree:
         return self
 
     def __next__(self) -> Node:
+        n = self.next()  # may raise StopIteration()
         self._nodes_visited += 1
-        return self.next()
+        return n
 
+    @abc.abstractmethod
     def next(self) -> Node:
-        raise NotImplementedError()
+        raise NotImplementedError("To be implemented in subclass")
 
     @property
     def nodes_visited(self) -> int:
@@ -41,7 +44,7 @@ class _TraverseTree:
     # that wouldn't solve the above, bigger, problem.
 
 
-class _TraverseTree_BreathFirst_or_DepthFirstPre(_TraverseTree):
+class _TraverseTree_BreathFirst_or_DepthFirstPre(_TraverseTree, abc.ABC):
     """
     Shared logic for both BreathFirst and DepthFirst Pre-order
     """
@@ -228,7 +231,6 @@ def for_sendable_generator(gen: GenType) -> GenType:
 if __name__ == "__main__":
     import dataclasses
     import timeit
-    import functools
 
     @dataclasses.dataclass
     class Tree:
@@ -319,6 +321,7 @@ if __name__ == "__main__":
 
     # legacy below
     # ------------
+    #
     # Breath first
     result = []
     for n in traverse_breath_first(tree, lambda n: iter(n.branches)):
