@@ -1,18 +1,17 @@
 import typing
 
-
-NodeId = typing.TypeVar('NodeId', bound=typing.Hashable)
+from tools.graph import NodeId
 
 
 def floyd_warshall(
         edge_costs: typing.Mapping[typing.Tuple[NodeId, NodeId], int],
 ) -> typing.Mapping[NodeId, typing.Mapping[NodeId, int]]:
     """
-    Calculate the cost between all node-pairs from the listed edge casts.
+    Calculate the cost between all node-pairs from the listed edge costs.
     :param edge_costs: Mapping between edges and the associated cost for this path (from, to)
 
     Note that this does NOT return the path to take to achieve that cost;
-    consider using Dijkstra instead.
+    consider using Dijkstra or A* instead.
 
     Complexity: O(n^3)
     """

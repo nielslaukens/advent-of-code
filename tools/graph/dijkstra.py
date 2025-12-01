@@ -3,39 +3,11 @@ import dataclasses
 import heapq
 import math
 import typing
+from tools.graph import CostNode, NodeId
 
-
-NodeId = typing.TypeVar('NodeId', bound=typing.Hashable)
 
 NOTHING = object()  # used as None, but without actually being None
 # This way, the user can use None as NodeId
-
-
-@dataclasses.dataclass(slots=True, eq=True, frozen=True)
-class CostNode:
-    """
-    When used to supply edges, `cost` signifies the cost of this edge, and
-    `node` signifies the other end of the edge.
-    When returned from find_best_path, `cost` is the *total* cost from
-    `start_node` to here, and `node` is the previous node in the best path to
-    here.
-    """
-    cost: int
-    node: NodeId
-
-    def __lt__(self, other):
-        # used by heapq for sorting
-        return self.cost < other.cost
-
-    # others for completeness:
-    def __gt__(self, other):
-        return self.cost > other.cost
-
-    def __le__(self, other):
-        return self.cost <= other.cost
-
-    def __ge__(self, other):
-        return self.cost >= other.cost
 
 
 def find_best_path(
@@ -198,3 +170,6 @@ if __name__ == "__main__":
     print(f"find_best_path(): {t:.3f}")
     t = timeit.timeit(lambda: dijkstra(rendered_edges, (0, 0)), number=3)
     print(f"dijkstra(): {t:.3f}")
+
+    t = timeit.timeit(lambda: find_best_path((GRID_SIZE[0]-1, GRID_SIZE[1]-1), edges, (0, 0)), number=3)
+    print(f"find_best_path to destination: {t:.3f}")

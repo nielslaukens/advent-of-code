@@ -139,6 +139,23 @@ class Slices:
     def __iter__(self) -> typing.Iterator[slice]:
         return iter(self._ranges)
 
+    def __contains__(self, item: slice | typing.Any) -> bool:
+        if isinstance(item, slice):
+            start = item.start
+        else:
+            start = item
+
+        for r in self._ranges:
+            if r.start <= start < r.stop:
+                if isinstance(item, slice):
+                    return item.stop <= r.stop
+                # else:
+                return True
+            elif start < r.start:
+                # ranges is sorted, we won't find anything anymore
+                break
+        return False
+
 
 if __name__ == "__main__":
     assert Slices()._ranges == []
@@ -152,3 +169,11 @@ if __name__ == "__main__":
     assert Slices([slice(10, 20)]).remove(slice(5, 25))._ranges == []
     assert Slices([slice(10, 20)]).remove(slice(15, 25))._ranges == [slice(10, 15)]
     assert Slices([slice(10, 20)]).remove(slice(12, 18))._ranges == [slice(10, 12), slice(18, 20)]
+
+    assert 4 not in Slices([slice(5, 10)])
+    assert 5 in Slices([slice(5, 10)])
+    assert 10 not in Slices([slice(5, 10)])
+    assert 11 not in Slices([slice(5, 10)])
+    assert 5 not in Slices([slice(1, 5), slice(6, 10)])
+
+    assert slice(2, 4) in Slices([slice(0, 5)])

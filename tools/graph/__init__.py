@@ -1,6 +1,39 @@
+import dataclasses
 import typing
 
 NodeId = typing.TypeVar('NodeId', bound=typing.Hashable)
+
+
+@dataclasses.dataclass(slots=True, eq=True, frozen=True)
+class CostNode:
+    """
+    When used to supply edges, `cost` signifies the cost of this edge, and
+    `node` signifies the other end of the edge.
+    When returned from find_best_path, `cost` is the *total* cost from
+    `start_node` to here, and `node` is the previous node in the best path to
+    here.
+    """
+    cost: int
+    node: NodeId
+
+    def __lt__(self, other) -> bool:
+        # used by heapq for sorting
+        return self.cost < other.cost
+
+    # others for completeness:
+    def __gt__(self, other) -> bool:
+        return self.cost > other.cost
+
+    def __le__(self, other) -> bool:
+        return self.cost <= other.cost
+
+    def __ge__(self, other) -> bool:
+        return self.cost >= other.cost
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, CostNode):
+            return False
+        return self.cost == other.cost and self.node == other.node
 
 
 def remove_node(
