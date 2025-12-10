@@ -33,51 +33,47 @@ with open("input.txt") as f:
             for pos in switch:
                 n[pos] = 1
             switches[i] = n
-        machines.append(Machine(numpy.array(switches).transpose(), joltage))
+        machines.append(Machine(switches, joltage))
 
 
-class ButtonPresses:
-    def __init__(self, options: numpy.ndarray, num_pushes: numpy.ndarray = None):
-        if num_pushes is None:
-            num_pushes = numpy.zeros((options.shape[1],), dtype=int)
-        self.num_pushes = num_pushes
+class Node:
+    def __init__(self, options: numpy.ndarray, pushes: numpy.ndarray = None):
+        if pushes is None:
+            pushes = numpy.zeros((options.shape[1],), dtype=int)
         self.options = options
+        self.pushes = pushes
 
-    def value(self) -> numpy.ndarray:
-        return numpy.matmul(self.options, self.num_pushes)
-
-    def branches(self) -> typing.Generator[ButtonPresses, None, None]:
-        for i in range(self.num_pushes.shape[0]):
-            # Since the order of the button presses doesn't matter,
-            # only generate extra pushes for buttons up to the highest used button
-            j = numpy.zeros(self.num_pushes.shape, dtype=int)
+    def branches(self) -> typing.Generator[Node, None, None]:
+        for i in range(self.options.shape[1]):
+            j = numpy.zeros(self.pushes.shape, dtype=int)
             j[i] = 1
-            new_num_pushes = self.num_pushes + j
-            yield ButtonPresses(self.options, new_num_pushes)
-            if self.num_pushes[i] > 0:
+            pushes = self.pushes + j
+            yield Node(self.options, pushes)
+            if self.pushes[i] > 0:
                 break
 
     def __str__(self) -> str:
-        return f"{self.value()} after {self.num_pushes}"
+        return f"{self.pushes} => {self.value()}"
+
+    def value(self) -> numpy.ndarray:
+        return numpy.matmul(self.options, self.pushes)
 
 
 total_presses = 0
 for machine in machines:
     pprint(machine)
-
-    tree = tools.tree.TraverseTreeBreathFirst(
-        ButtonPresses(machine.switches),
+    tree = tools.tree.TraverseTreeDepthFirstPre(
+        Node(numpy.array(sorted(machine.switches, key=lambda e: sum(e), reverse=True)).transpose()),
         lambda n: n.branches(),
     )
     for node in tree:
         v = node.value()
         if numpy.all(v == machine.joltage):
-            print(f"[{tree.nodes_visited}] Reached state {v} after pressing {sum(node.num_pushes)} buttons: {node.num_pushes}")
-            total_presses += sum(node.num_pushes)
+            print(f"Found {node.value()} with {sum(node.pushes)} pushes")
+            total_presses += sum(node.pushes)
             break
-        elif numpy.any(v > machine.joltage):
+        if numpy.any(v > machine.joltage):
             tree.dont_descend_into_current_node()
-
 
 print(total_presses)
 print(f"Runtime: {time.time()-start_time:.3f} seconds")
