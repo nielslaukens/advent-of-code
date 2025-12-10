@@ -42,21 +42,24 @@ class Node:
             pushes = numpy.zeros((options.shape[1],), dtype=int)
         self.options = options
         self.pushes = pushes
+        self._value = None
 
     def branches(self) -> typing.Generator[Node, None, None]:
         for i in range(self.options.shape[1]):
+            if i < self.options.shape[1]-1 and self.pushes[i+1] != 0:
+                continue
             j = numpy.zeros(self.pushes.shape, dtype=int)
             j[i] = 1
             pushes = self.pushes + j
             yield Node(self.options, pushes)
-            if self.pushes[i] > 0:
-                break
 
     def __str__(self) -> str:
         return f"{self.pushes} => {self.value()}"
 
     def value(self) -> numpy.ndarray:
-        return numpy.matmul(self.options, self.pushes)
+        if self._value is None:
+            self._value = numpy.matmul(self.options, self.pushes)
+        return self._value
 
 
 total_presses = 0
@@ -67,9 +70,11 @@ for machine in machines:
         lambda n: n.branches(),
     )
     for node in tree:
+        if tree.nodes_visited % 1_000_000 == 0:
+            print(tree.nodes_visited, node)
         v = node.value()
         if numpy.all(v == machine.joltage):
-            print(f"Found {node.value()} with {sum(node.pushes)} pushes")
+            print(f"Found {node.value()} after {tree.nodes_visited} with {sum(node.pushes)} pushes")
             total_presses += sum(node.pushes)
             break
         if numpy.any(v > machine.joltage):
