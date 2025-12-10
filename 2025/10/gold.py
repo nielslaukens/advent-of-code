@@ -1,7 +1,6 @@
 from __future__ import annotations
 import dataclasses
 import re
-import sys
 import typing
 import time
 from pprint import pprint
@@ -36,7 +35,7 @@ with open("input.txt") as f:
             switches[i] = n
 
         switches = sorted(switches, key=lambda x: sum(x), reverse=True)
-        machines.append(Machine(switches, joltage))
+        machines.append(Machine(numpy.array(switches), joltage))
 
 
 def splits(total: int, parts: int) -> typing.Generator[tuple[int, ...], None, None]:
@@ -71,7 +70,7 @@ class Node:
     def __init__(
             self,
             joltage: numpy.ndarray,
-            switches: list[numpy.ndarray],
+            switches: numpy.ndarray,
             pushes: numpy.ndarray = None,
             digits_to_do: list[int] = None
     ):
@@ -79,15 +78,20 @@ class Node:
             pushes = numpy.zeros((len(switches),), dtype=int)
         if digits_to_do is None:
             digits_to_do = list(range(len(joltage)))
-            digits_to_do = sorted(digits_to_do, key=lambda d: joltage[d])
+
         self.joltage = joltage
         self.switches = switches
         self.pushes = pushes
-        self.digits_to_do = digits_to_do
         self._value = None
 
+        # Do digits in the best order:
+        switches_affecting_digit = switches.sum(axis=0)
+        remaining_joltage = joltage - self.value()
+        digits_to_do = sorted(digits_to_do, key=lambda d: remaining_joltage[d] ** switches_affecting_digit[d])
+        self.digits_to_do = digits_to_do
+
     def __str__(self) -> str:
-        return f"{self.digits_to_do} {self.pushes} => {self.joltage - self.value()}"
+        return f"digits to do: {self.digits_to_do}; pushes {self.pushes} => {self.joltage - self.value()}"
 
     def value(self) -> numpy.ndarray:
         if self._value is None:
@@ -124,6 +128,8 @@ for i, machine in enumerate(machines):
     )
     least = None
     for node in tree:
+        # if tree.nodes_visited % 1_000_000 == 0:
+        #     print(node)
         v = node.value()
         if numpy.any(v > machine.joltage):
             tree.dont_descend_into_current_node()
