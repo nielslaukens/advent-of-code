@@ -5,48 +5,16 @@ import typing
 import time
 from pprint import pprint
 
+import numpy
 import tools.tree
 
 start_time = time.time()
 
 
-class Joltage:
-    def __init__(self, jolts: list[int]):
-        self.jolts = list(jolts)
-
-    @classmethod
-    def zero(cls, length: int) -> Joltage:
-        return cls([0] * length)
-
-    def __str__(self) -> str:
-        return str(self.jolts)
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({repr(self.jolts)})"
-
-    def __eq__(self, other: typing.Any) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return self.jolts == other.jolts
-
-    def bump(self, which_ones: list[int]) -> Joltage:
-        o = Joltage(self.jolts)
-        for j in which_ones:
-            o.jolts[j] += 1
-        return o
-
-
-j = Joltage.zero(4)
-j = j.bump([0, 1, 3])
-assert j.jolts == [1, 1, 0, 1]
-j = j.bump([1, 2])
-assert j.jolts == [1, 2, 1, 1]
-
-
 @dataclasses.dataclass
 class Machine:
-    switches: list[list[int]]
-    joltage: Joltage
+    switches: list[numpy.ndarray]
+    joltage: numpy.ndarray
 
 
 machines = []
@@ -55,31 +23,42 @@ with open("input.txt") as f:
         line = line.rstrip()
         m = re.fullmatch(r'\[([.#]+)] ([^{]+){(.*)}', line)
         switches = m.group(2)[1:-2]  # strip starting '(' and ending ') '
-        switches = [[int(pos) for pos in switch.split(',')] for switch in switches.split(') (')]
-        joltage = Joltage([int(num) for num in m.group(3).split(',')])
-        machines.append(Machine(switches, joltage))
+        switches = [
+            [int(pos) for pos in switch.split(',')]
+            for switch in switches.split(') (')]
+        joltage = numpy.array([int(num) for num in m.group(3).split(',')])
+
+        for i, switch in enumerate(switches):
+            n = numpy.zeros(joltage.shape, dtype=int)
+            for pos in switch:
+                n[pos] = 1
+            switches[i] = n
+        machines.append(Machine(numpy.array(switches).transpose(), joltage))
 
 
 class ButtonPresses:
-    def __init__(self, joltage: Joltage, options: list[list[int]], history: list[int] = None):
-        if history is None:
-            history = [0] * len(options)
-        self.state = joltage
+    def __init__(self, options: numpy.ndarray, num_pushes: numpy.ndarray = None):
+        if num_pushes is None:
+            num_pushes = numpy.zeros((options.shape[1],), dtype=int)
+        self.num_pushes = num_pushes
         self.options = options
-        self.history = history
+
+    def value(self) -> numpy.ndarray:
+        return numpy.matmul(self.options, self.num_pushes)
 
     def branches(self) -> typing.Generator[ButtonPresses, None, None]:
-        for i, t in enumerate(self.options):
+        for i in range(self.num_pushes.shape[0]):
             # Since the order of the button presses doesn't matter,
-            h = list(self.history)
-            h[i] += 1
-            l = self.state.bump(t)
-            yield ButtonPresses(l, self.options, h)
-            if self.history[i] > 0:
+            # only generate extra pushes for buttons up to the highest used button
+            j = numpy.zeros(self.num_pushes.shape, dtype=int)
+            j[i] = 1
+            new_num_pushes = self.num_pushes + j
+            yield ButtonPresses(self.options, new_num_pushes)
+            if self.num_pushes[i] > 0:
                 break
 
     def __str__(self) -> str:
-        return f"{self.state} after {self.history}"
+        return f"{self.value()} after {self.num_pushes}"
 
 
 total_presses = 0
@@ -87,25 +66,18 @@ for machine in machines:
     pprint(machine)
 
     tree = tools.tree.TraverseTreeBreathFirst(
-        ButtonPresses(Joltage.zero(len(machine.joltage.jolts)), machine.switches),
+        ButtonPresses(machine.switches),
         lambda n: n.branches(),
     )
     for node in tree:
-        all_equal = True
-        for i, j in enumerate(node.state.jolts):
-            ref = machine.joltage.jolts[i]
-            if j > machine.joltage.jolts[i]:
-                tree.dont_descend_into_current_node()
-                all_equal = False
-                break
-            if j != ref:
-                all_equal = False
-                break
-        # print(f"{node.history} => {node.state} for {machine.joltage}")
-        if all_equal:
-            print(f"[{tree.nodes_visited}] Reached state {node.state} after pressing {sum(node.history)} buttons: {node.history}")
-            total_presses += sum(node.history)
+        v = node.value()
+        if numpy.all(v == machine.joltage):
+            print(f"[{tree.nodes_visited}] Reached state {v} after pressing {sum(node.num_pushes)} buttons: {node.num_pushes}")
+            total_presses += sum(node.num_pushes)
             break
+        elif numpy.any(v > machine.joltage):
+            tree.dont_descend_into_current_node()
+
 
 print(total_presses)
 print(f"Runtime: {time.time()-start_time:.3f} seconds")
