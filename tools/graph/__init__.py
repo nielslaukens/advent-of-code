@@ -73,33 +73,6 @@ def remove_node(
     return new_edge_costs
 
 
-if __name__ == "__main__":
-    print("running tests")
-
-    edge_costs = {
-        (0, 1): 1,
-        (1, 2): 2,
-    }
-    nec = remove_node(edge_costs, 1)
-    assert nec == {}
-    nec = remove_node(edge_costs, 1, reconnect_edges=True)
-    assert nec == {(0, 2): 3}
-
-
-    edge_costs = {
-        (0, 1): 1,
-        (1, 0): 10,
-        (1, 2): 2,
-        (2, 1): 20,
-    }
-    nec = remove_node(edge_costs, 1)
-    assert nec == {}
-    nec = remove_node(edge_costs, 1, reconnect_edges=True)
-    assert nec == {(0, 2): 3, (2, 0): 30}
-
-    print("done")
-
-
 def topological_sort_dag(
         edges_from_to: typing.Mapping[NodeId, list[NodeId]],
 ) -> list[NodeId]:
@@ -143,7 +116,74 @@ def topological_sort_dag(
     return sorted_nodes
 
 
+def dag_reverse(
+        edges_from_to: typing.Mapping[NodeId, list[NodeId]],
+) -> typing.Mapping[NodeId, list[NodeId]]:
+    """
+    Reverse the direction of a Directed Acyclic Graph (DAG).
+    """
+    rev: dict[NodeId, list[NodeId]] = {}
+    for fr, tos in edges_from_to.items():
+        for to in tos:
+            rev.setdefault(to, []).append(fr)
+    return rev
+
+
+def number_of_paths_between(
+        edge_from_to: typing.Mapping[NodeId, list[NodeId]],
+        begin: NodeId,
+        end: NodeId,
+        edge_to_from: typing.Mapping[NodeId, list[NodeId]] = None,
+) -> int:
+    """
+    Count the number of paths between `begin` and `end` in the given graph `edges_from_to`.
+
+    This function needs the reversed graph as well, if the caller already has this, you can pass it in.
+    Otherwise it will be calculated here.
+
+    Note that this only returns the *number* of paths, not the actual paths themselves.
+    For that, look into the Tree Traversal module
+    """
+    if edge_to_from is None:
+        edge_to_from = dag_reverse(edge_from_to)
+
+    num_paths: dict[NodeId, int] = {
+        end: 1,
+    }
+
+    for node in topological_sort_dag(edge_to_from):
+        for next_node in edge_from_to.get(node, []):
+            num_paths[node] = num_paths.get(node, 0) + num_paths.get(next_node, 0)
+
+    return num_paths.get(begin, 0)
+
+
+
 if __name__ == "__main__":
+    print("running tests")
+
+    edge_costs = {
+        (0, 1): 1,
+        (1, 2): 2,
+    }
+    nec = remove_node(edge_costs, 1)
+    assert nec == {}
+    nec = remove_node(edge_costs, 1, reconnect_edges=True)
+    assert nec == {(0, 2): 3}
+
+
+    edge_costs = {
+        (0, 1): 1,
+        (1, 0): 10,
+        (1, 2): 2,
+        (2, 1): 20,
+    }
+    nec = remove_node(edge_costs, 1)
+    assert nec == {}
+    nec = remove_node(edge_costs, 1, reconnect_edges=True)
+    assert nec == {(0, 2): 3, (2, 0): 30}
+
+
     dag = {
         3: [4],
         2: [4, 3],
@@ -151,6 +191,7 @@ if __name__ == "__main__":
     }
     nodes = topological_sort_dag(dag)
     assert nodes == [1, 2, 3, 4]
+    assert number_of_paths_between(dag, 1, 4) == 3
 
     dag = {
         1: [2, 3],
@@ -159,6 +200,7 @@ if __name__ == "__main__":
     }
     nodes = topological_sort_dag(dag)
     assert nodes == [1, 2, 3, 4] or nodes == [1, 3, 2, 4]
+    assert number_of_paths_between(dag, 1, 4) == 2
 
     cyclic_graph = {
         1: [2],
@@ -169,3 +211,10 @@ if __name__ == "__main__":
         raise AssertionError("Should raise ValueError")
     except ValueError as e:
         pass
+    try:
+        number_of_paths_between(cyclic_graph, 1, 2)
+        raise AssertionError("Should raise ValueError")
+    except ValueError as e:
+        pass
+
+    print("done")
