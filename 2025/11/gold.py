@@ -1,8 +1,7 @@
 from __future__ import annotations
-import typing
 from pprint import pprint
 
-import tools.tree
+from tools.graph import topological_sort_dag
 
 device_outputs = {}
 with open("input.txt") as f:
@@ -11,51 +10,35 @@ with open("input.txt") as f:
         device_outputs[device] = outputs.split(' ')
 #pprint(device_outputs)
 
-# Normal tree search with validation is too slow...
-# Let's see if we can reverse the problem: work from out back towards svr
 device_inputs = {}
-for device, outputs in device_outputs.items():
+for input, outputs in device_outputs.items():
     for output in outputs:
-        device_inputs.setdefault(output, []).append(device)
+        device_inputs.setdefault(output, []).append(input)
 pprint(device_inputs)
 
-class Node:
-    def __init__(self, path: list[str]):
-        self.path = path
+def number_of_paths_between(begin: str, end: str) -> int:
+    num_paths: dict[str, int] = {}
+    for f, ts in device_outputs.items():
+        num_paths[f] = 0
+        for t in ts:
+            num_paths[t] = 0
+    num_paths[end] = 1
 
-    def __str__(self) -> str:
-        return f"Node({self.path})"
+    for node in topological_sort_dag(device_inputs):
+        for next_node in device_outputs.get(node, []):
+            num_paths[node] += num_paths[next_node]
 
-    def branches(self) -> typing.Generator[Node, None, None]:
-        current_node = self.path[-1]
-        for output in device_inputs.get(current_node, []):
-            if output in self.path:
-                raise RuntimeError(f"loop")
-            yield Node([*self.path, output])
+    return num_paths[begin]
 
-
-def find_num_paths_between(a: str, b: str) -> int:
-    tree = tools.tree.TraverseTreeBreathFirst(
-        Node([b]),
-        lambda n: n.branches(),
-    )
-    paths = 0
-    for node in tree:
-        if tree.nodes_visited % 1_000_000 == 0:
-            print(node)
-        if node.path[-1] == a:
-            paths += 1
-    return paths
-
-fft_dac_1 = find_num_paths_between("svr", "fft")
-fft_dac_2 = find_num_paths_between("fft", "dac")
-fft_dac_3 = find_num_paths_between("dac", "out")
+fft_dac_1 = number_of_paths_between('svr', 'fft')
+fft_dac_2 = number_of_paths_between('fft', 'dac')
+fft_dac_3 = number_of_paths_between('dac', 'out')
 fft_dac = fft_dac_1 * fft_dac_2 * fft_dac_3
 print(fft_dac_1, fft_dac_2, fft_dac_3, "=", fft_dac)
 
-dac_fft_1 = find_num_paths_between("svr", "dac")
-dac_fft_2 = find_num_paths_between("dac", "fft")
-dac_fft_3 = find_num_paths_between("fft", "out")
+dac_fft_1 = number_of_paths_between('svr', 'dac')
+dac_fft_2 = number_of_paths_between('dac', 'fft')
+dac_fft_3 = number_of_paths_between('fft', 'out')
 dac_fft = dac_fft_1 * dac_fft_2 * dac_fft_3
 print(dac_fft_1, dac_fft_2, dac_fft_3, "=", dac_fft)
 
